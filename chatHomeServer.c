@@ -13,6 +13,7 @@
 #include "modelThreadPool.h"
 #include <json-c/json.h>
 #include <json-c/json_object.h>
+#include <sys/epoll.h>
 #define SERVER_PORT 8888
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -20,25 +21,46 @@
 #define MINI_CAPACITY 5
 #define MAX_CAPACITY 10
 #define MAX_QUEUE_CA 50
+#define EVENT_SIZE 1024
 // void sigHander(int sigNum)
 // {
 //     int ret = 0;
 //     /* 资源回收 */
 //     /* todo... */
 // }
+typedef struct Fdset
+{
+    int acceptfd;
+    int epollfd;
+    int sockfd;
+} Fdset;
 typedef enum USER_OPTIONS
 {
     REGISTER,
 } USER_OPTIONS;
 /*线程处理函数*/
 
-void *threadHandle(void *arg)
+void *accept_handler(void *arg)
+{
+    Fdset *fdset = (Fdset *)arg;
+
+    fdset->acceptfd = accept(fdset->sockfd, NULL, NULL);
+    if (fdset->acceptfd == -1)
+    {
+        perror("accpet error");
+        exit(-1);
+    }
+    /* 将通信句柄放到epoll的红黑树上 */
+    struct epoll_event event;
+    event.data.fd = fdset->acceptfd;
+    event.events = EPOLLIN;
+    epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
+}
+
+void *communicate_handler(void *arg)
 {
     pthread_detach(pthread_self());
-    /*通讯句柄*/
-    int acceptfd = *(int *)arg;
-    /*通信*/
-
+    Fdset *fdset = (Fdset *)arg;
     /*接收缓冲区*/
     char recvbuffer[BUFFER_SIZE];
     memset(recvbuffer, 0, sizeof(recvbuffer));
@@ -49,47 +71,47 @@ void *threadHandle(void *arg)
     int readBytes = 0;
     struct json_object *parseObj = calloc(1, sizeof(parseObj));
     int demand = 0;
-    while (1)
+
+    readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
+    if (readBytes < 0)
     {
-
-        readBytes = read(acceptfd, (void *)recvbuffer, sizeof(recvbuffer));
-        printf("ok11\n");
-        if (readBytes <= 0)
+        perror("read eror");
+        /* 从epoll的红黑树上删除通信结点 */
+        epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        close(fdset->acceptfd);
+    }
+    else if (readBytes == 0)
+    {
+        printf("客户端下线了...\n");
+        /* 从epoll的红黑树上删除通信结点 */
+        epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        close(fdset->acceptfd);
+    }
+    else
+    {
+        /*接受消息*/
+        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
-            perror("read error");
-            close(acceptfd);
-            break;
+            /* sqlite3 *db;
+            int sqliteRet = sqlite3_open("./chatdb", &db); // 打开数据库
+
+            // 构建sq语句
+
+            // 执行sql
+
+            // 如果执行成功，给客户端发送回馈*/
+            /*注册函数*/
+            printf("%s\n", recvbuffer);
+            parseObj = json_tokener_parse(recvbuffer);
+            struct json_object *acountVal = json_object_object_get(parseObj, "account");
+
+            printf("client massage=%s\n", json_object_get_string(acountVal));
         }
-        else
+        else if (strncmp(recvbuffer, "778", strlen("778")) == 0)
         {
-
-            /*接受消息*/
-            if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
-            {
-                /* sqlite3 *db;
-                int sqliteRet = sqlite3_open("./chatdb", &db); // 打开数据库
-
-                // 构建sq语句
-
-                // 执行sql
-
-                // 如果执行成功，给客户端发送回馈*/
-                /*注册函数*/
-                printf("%s\n", recvbuffer);
-                parseObj = json_tokener_parse(recvbuffer);
-                struct json_object *acountVal = json_object_object_get(parseObj, "account");
-
-                printf("client massage=%s\n", json_object_get_string(acountVal));
-            }
-            else if (strncmp(recvbuffer, "778", strlen("778")) == 0)
-            {
-                strncpy(sendBuffer, "889", sizeof(sendBuffer) - 1);
-                sleep(1);
-                write(acceptfd, sendBuffer, sizeof(sendBuffer));
-            }
-
-            sleep(3);
         }
+
+        sleep(3);
     }
 
     pthread_exit(NULL);
@@ -156,6 +178,31 @@ int main()
         perror("listen error");
         exit(-1);
     }
+    /* 创建epoll 红黑树 */
+    int epfd = epoll_create(1);
+    if (epfd == -1)
+    {
+        perror("epoll create error");
+        exit(-1);
+    }
+
+    /* 将sockfd 添加到监听事件中 */
+    struct epoll_event event;
+    memset(&event, 0, sizeof(event));
+    event.data.fd = sockfd;
+    event.events = EPOLLIN;
+
+    ret = epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &event);
+    if (ret == -1)
+    {
+        perror("epoll_ctl error");
+        exit(-1);
+    }
+
+    struct epoll_event events[EVENT_SIZE];
+    /* 清除脏数据 */
+    memset(events, 0, sizeof(events));
+    int maxEventSize = sizeof(events) / sizeof(events[0]);
 
     /* 客户的信息 */
     struct sockaddr_in clientAddress;
@@ -166,25 +213,35 @@ int main()
     while (1)
     {
 
-        acceptfd = accept(sockfd, (struct sockaddr *)&clientAddress, &clientAddressLen);
-        if (acceptfd == -1)
+        int num = epoll_wait(epfd, events, maxEventSize, -1);
+        if (num == -1)
         {
-            perror("accpet error");
+            perror("epoll wait error");
             exit(-1);
         }
+        /* 程序到这里一定有通信 */
+        printf("num = %d\n", num);
 
-#if 0
-        /*开一个线程去服务一个acceptfd*/
-        pthread_t tid;
-        ret = pthread_create(&tid, NULL, threadHandle, (void *)&acceptfd);
-        if (ret != 0)
+        for (int idx = 0; idx < num; idx++)
         {
-            perror("pthread_create error");
-            exit(-1);
+
+            int fd = events[idx].data.fd;
+            if (fd == sockfd)
+            {
+                Fdset *fdset = calloc(1, sizeof(Fdset));
+                fdset->sockfd = fd;
+                fdset->epollfd = epfd;
+                poolAdd(pool, accept_handler, (void *)fdset);
+            }
+            else
+            {
+                Fdset *fdset = calloc(1, sizeof(Fdset));
+                fdset->acceptfd = fd;
+                fdset->sockfd = sockfd;
+                fdset->epollfd = epfd;
+                poolAdd(pool, communicate_handler, (void *)fdset);
+            }
         }
-#endif
-        /*将任务添加到任务队列*/
-        poolAdd(pool, threadHandle, (void *)&acceptfd);
     }
 
     poolDestroy(pool);
