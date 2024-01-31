@@ -11,7 +11,7 @@ enum CODE_STATUS
     ON_SUCCESS,
 };
 /*初始化数据库*/
-int dataBaseInit()
+int dataBaseInit(sqlite3 **db)
 {
     sqlite3 *mydb = NULL;
     /*打开数据库*/
@@ -31,6 +31,8 @@ int dataBaseInit()
         exit(-1);
     }
     sqlite3_close(mydb);
+    /*解引用*/
+    *db = mydb;
     return ON_SUCCESS;
 }
 int dataBaseDuplicateCheck(struct json_object *parseObj)

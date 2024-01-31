@@ -26,10 +26,17 @@
 #define MAX_CAPACITY 10
 #define MAX_QUEUE_CA 50
 #define EVENT_SIZE 1024
+#define USER_SIZE 32
 /*全局变量，方便捕捉信号后释放资源*/
 ThreadPool *pool = NULL;
 int sockfd;
 BalanceBinarySearchTree *AVL = NULL;
+sqlite3 *mydb = NULL;
+typedef struct USER
+{
+    char name[USER_SIZE];
+    char password[USER_SIZE];
+} USER;
 enum CODE_STATUS
 {
     REPEATED_USER = -1,
@@ -48,13 +55,13 @@ typedef enum USER_OPTIONS
 } USER_OPTIONS;
 /*线程处理函数*/
 
-/* 测试二叉搜索树 */
+/* 二叉搜索树的比较函数 */
 int compareFunc(void *arg1, void *arg2)
 {
-    int val1 = *(int *)arg1;
-    int val2 = *(int *)arg2;
+    USER val1 = *(USER *)arg1;
+    USER val2 = *(USER *)arg2;
 
-    return val1 - val2;
+    return strncmp(val1.name, val2.name, strlen(val1.name));
 }
 
 void *accept_handler(void *arg)
@@ -145,11 +152,10 @@ void *communicate_handler(void *arg)
                 sleep(2);
             }
         }
+        /*功能在if中加*/
         else if (strncmp(recvbuffer, "778", strlen("778")) == 0)
         {
         }
-
-        sleep(3);
     }
 
     pthread_exit(NULL);
@@ -165,16 +171,36 @@ void signal_handler(int sig)
     sleep(2);
     exit(-1);
 }
-int dataBaseToMemory()
+int dataBaseToMemory(sqlite3 *db, BalanceBinarySearchTree *avl)
 {
+    USER *dataBaseUser = calloc(1, sizeof(USER));
+    sqlite3_open("chatBase.db", &db);
+    char *errormsg = NULL;
+    const char *sql = "select * from user";
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    int ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error2:%s\n", errormsg);
+        exit(-1);
+    }
+    for (int idx = column; idx < (row * column); idx = idx + 2)
+    {
+        strncpy(dataBaseUser->name, result[idx], sizeof(dataBaseUser->name) - 1);
+        strncpy(dataBaseUser->password, result[idx + 1], sizeof(dataBaseUser->password) - 1);
+        balanceBinarySearchTreeInsert(avl, (void *)dataBaseUser);
+    }
+    sqlite3_close(db);
 }
 int main()
 {
     /*初始化树，线程池，数据库*/
     balanceBinarySearchTreeInit(&AVL, compareFunc, NULL);
     /*将数据库中的信息存入内存*/
-    dataBaseToMemory();
-    dataBaseInit();
+    dataBaseToMemory(mydb, AVL);
+    dataBaseInit(&mydb);
     poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
 
     /*捕捉退出信号*/
