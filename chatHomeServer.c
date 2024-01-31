@@ -19,7 +19,7 @@
 #include <string.h>
 #include <stddef.h>
 #include "balanceBinarySearchTree.h"
-#define SERVER_PORT 8880
+#define SERVER_PORT 8879
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -29,10 +29,12 @@
 #define EVENT_SIZE 1024
 #define USER_SIZE 128
 /*全局变量，方便捕捉信号后释放资源*/
+
 ThreadPool *pool = NULL;
 int sockfd;
 BalanceBinarySearchTree *AVL = NULL;
 sqlite3 *mydb = NULL;
+pthread_mutex_t g_mutex;
 typedef struct USER
 {
     char name[USER_SIZE];
@@ -70,7 +72,7 @@ int compareFunc(void *arg1, void *arg2)
 void *accept_handler(void *arg)
 {
     Fdset *fdset = (Fdset *)arg;
-
+    pthread_detach(pthread_self());
     fdset->acceptfd = accept(fdset->sockfd, NULL, NULL);
     if (fdset->acceptfd == -1)
     {
@@ -79,9 +81,11 @@ void *accept_handler(void *arg)
     }
     /* 将通信句柄放到epoll的红黑树上 */
     struct epoll_event event;
+    pthread_mutex_lock(&g_mutex);
     event.data.fd = fdset->acceptfd;
     event.events = EPOLLIN;
     epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
+    pthread_mutex_unlock(&g_mutex);
 }
 
 void *communicate_handler(void *arg)
@@ -108,14 +112,18 @@ void *communicate_handler(void *arg)
     {
         perror("read eror");
         /* 从epoll的红黑树上删除通信结点 */
+        pthread_mutex_lock(&g_mutex);
         epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        pthread_mutex_unlock(&g_mutex);
         close(fdset->acceptfd);
     }
     else if (readBytes == 0)
     {
         printf("客户端下线了...\n");
         /* 从epoll的红黑树上删除通信结点 */
+        pthread_mutex_lock(&g_mutex);
         epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        pthread_mutex_unlock(&g_mutex);
         close(fdset->acceptfd);
     }
     else
@@ -133,7 +141,7 @@ void *communicate_handler(void *arg)
             if (ret == ON_SUCCESS)
             {
                 /*有重复*/
-                strncpy(sendBuffer, "美名尚存,另寻他名\n", sizeof(sendBuffer) - 1);
+                strncpy(sendBuffer, "美名尚存,另寻他名", sizeof(sendBuffer) - 1);
                 int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                 if (retwrite == -1)
                 {
@@ -145,15 +153,19 @@ void *communicate_handler(void *arg)
             else
             {
                 /*无重复*/
-                /*插入数据树*/
+                /*插入数据树,上锁*/
+                pthread_mutex_lock(&g_mutex);
                 balanceBinarySearchTreeInsert(AVL, (void *)currentUser);
-                /*插入数据库*/
+                pthread_mutex_unlock(&g_mutex);
+                /*插入数据库,上锁*/
+                pthread_mutex_lock(&g_mutex);
                 ret = dataBaseUserInsert(parseObj);
+                pthread_mutex_unlock(&g_mutex);
                 if (ret != ON_SUCCESS)
                 {
                     printf("dataBaseUserInsert error\n");
                 }
-                strncpy(sendBuffer, "注册成功了，开始冲浪吧\n", sizeof(sendBuffer) - 1);
+                strncpy(sendBuffer, "注册成功了，开始冲浪吧", sizeof(sendBuffer) - 1);
                 int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                 if (retwrite == -1)
                 {
@@ -182,11 +194,20 @@ void *communicate_handler(void *arg)
                 if (strncmp(nodeUser->password, currentUser->password, len1 < len2 ? len1 : len2) == 0)
                 {
                     /*如果匹配*/
-                    strncpy(sendBuffer, "登陆成功\n", sizeof(sendBuffer) - 1);
+                    strncpy(sendBuffer, "登陆成功", sizeof(sendBuffer) - 1);
                     int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                     if (retwrite == -1)
                     {
                         perror("write error");
+                    }
+
+                    /*登录成功的人要加入数据库,上锁*/
+                    pthread_mutex_lock(&g_mutex);
+                    ret = dataBaseFriendInsert(nodeUser->name, NULL, fdset->acceptfd, 1, NULL);
+                    pthread_mutex_unlock(&g_mutex);
+                    if (ret != ON_SUCCESS)
+                    {
+                        printf("dataBaseFriendInsert error\n");
                     }
                     json_object_put(parseObj); // 释放 parseObj
                     sleep(2);
@@ -194,7 +215,7 @@ void *communicate_handler(void *arg)
                 else
                 {
                     /*密码不匹配，重新登录*/
-                    strncpy(sendBuffer, "密码不正确,请重新登陆\n", sizeof(sendBuffer) - 1);
+                    strncpy(sendBuffer, "密码不正确,请重新登陆", sizeof(sendBuffer) - 1);
                     int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                     if (retwrite == -1)
                     {
@@ -207,7 +228,7 @@ void *communicate_handler(void *arg)
             else
             {
                 /*如果匹配结点为空则说明输入的账户不存在*/
-                strncpy(sendBuffer, "用户不存在,请重新输入或者注册\n", sizeof(sendBuffer) - 1);
+                strncpy(sendBuffer, "用户不存在,请重新输入或者注册", sizeof(sendBuffer) - 1);
                 int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                 if (retwrite == -1)
                 {
@@ -217,18 +238,24 @@ void *communicate_handler(void *arg)
                 sleep(2);
             }
         }
+        else if (1)
+        {
+        }
     }
 
     pthread_exit(NULL);
 }
 void signal_handler(int sig)
 {
-
+    /*销毁线程成*/
     poolDestroy(pool);
     /*关闭文件描述符*/
     close(sockfd);
+    /*销毁AVL*/
     balanceBinarySearchTreeDestroy(AVL);
-    printf("获取中断信号,退出服务器...\n");
+    /*释放锁资源*/
+    pthread_mutex_destroy(&g_mutex);
+    printf("获取中断信号,释放资源退出服务器...\n");
     sleep(2);
     exit(-1);
 }
@@ -269,12 +296,17 @@ int printStructData(void *arg)
 }
 int main()
 {
-    /*初始化树，线程池，数据库*/
+    /*初始化树，数据库，线程池，锁*/
     balanceBinarySearchTreeInit(&AVL, compareFunc, printStructData);
     /*将数据库中的信息存入内存*/
     dataBaseToMemory(mydb, AVL);
+    /*初始化数据库*/
     dataBaseInit(&mydb);
+    /*初始化线程池*/
     poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
+    /*初始化锁资源*/
+    pthread_mutex_init(&g_mutex, NULL);
+    /*层序遍历树，打印信息*/
     balanceBinarySearchTreeLevelOrderTravel(AVL);
     sleep(2);
     /*捕捉退出信号*/

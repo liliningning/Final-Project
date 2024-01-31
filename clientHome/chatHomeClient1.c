@@ -10,16 +10,23 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 8880
+#define SERVER_PORT 8879
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
-
+#define SUCCESS_LOGIN "登陆成功"
 typedef enum USER_OPTIONS
 {
     REGISTER = 1,
     LOGIN = 2,
 } USER_OPTIONS;
 
+typedef enum AFTER_LOGIN
+{
+    ADD_FRIEND = 1,
+    FRIEND_APPLICATION = 2,
+    DELETE_FRIREND = 3,
+    SEND_MESSAGE = 4,
+} AFTER_LOGIN;
 static int clientLogIn(int sockfd)
 {
     int ret = 0;
@@ -152,8 +159,8 @@ int main()
     char recvBuffer[BUFFER_SIZE];
     memset(recvBuffer, 0, sizeof(recvBuffer));
 
-    int choices;
-    while (1)
+    int choices = 0;
+    while (strcmp(recvBuffer, SUCCESS_LOGIN))
     {
 #if 1
         printf("请输入选项:\n");
@@ -193,12 +200,39 @@ int main()
         default:
             break;
         }
-
-        // read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
-        // printf("server massage:%s\n", recvBuffer);
-
         sleep(1);
 #endif
+    }
+    /*登录成功*/
+    while (1)
+    {
+        printf("请输入选项:\n");
+        printf("1.添加好友\n2.好友请求\n3.删除好友\n4.给好友发送消息\n");
+        scanf("%d", &choices);
+        /*去除行缓存*/
+        while (getchar() != '\n')
+            ;
+        switch (choices)
+        {
+        case ADD_FRIEND:
+        {
+            break;
+        }
+        case FRIEND_APPLICATION:
+        {
+            break;
+        }
+        case DELETE_FRIREND:
+        {
+            break;
+        }
+        case SEND_MESSAGE:
+        {
+            break;
+        }
+        default:
+            break;
+        }
     }
 
     /* 休息5S */

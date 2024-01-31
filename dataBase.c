@@ -23,11 +23,18 @@ int dataBaseInit(sqlite3 **db)
     }
     /*创建用户信息表*/
     char *errormsg = NULL;
-    const char *sql = " create table if not exists user (name text primary key not null not null,password text)";
+    const char *sql = " create table if not exists user (name text primary key not null ,password text)";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec error1:%s\n", errormsg);
+        exit(-1);
+    }
+    sql = "create table if not exists friend(name text primary key not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text)";
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error2:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -77,6 +84,7 @@ int dataBaseUserInsert(struct json_object *parseObj)
     // parseObj = json_tokener_parse(jsonStr);
     struct json_object *acountVal = json_object_object_get(parseObj, "account");
     struct json_object *passwordVal = json_object_object_get(parseObj, "password");
+
     sqlite3 *mydb = NULL;
     /*打开数据库*/
     int ret = sqlite3_open("chatBase.db", &mydb);
@@ -90,6 +98,31 @@ int dataBaseUserInsert(struct json_object *parseObj)
 
     char sql[SQL_SIZE] = {0};
     sprintf(sql, "insert into user values('%s','%s')", json_object_get_string(acountVal), json_object_get_string(passwordVal));
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error1:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+    return ON_SUCCESS;
+}
+
+int dataBaseFriendInsert(const char *name, const char *friendName, int acceptfd, int onlineStatus, const char *priviteMessage)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    /*插入用户信息*/
+    char *errormsg = NULL;
+
+    char sql[SQL_SIZE] = {0};
+    sprintf(sql, "insert into friend values('%s','%s',%d,%d,'%s')", name, friendName, acceptfd, onlineStatus, priviteMessage);
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {

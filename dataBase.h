@@ -6,4 +6,5 @@
 int dataBaseInit(sqlite3 **db);
 int dataBaseDuplicateCheck(struct json_object *parseObj);
 int dataBaseUserInsert(struct json_object *parseObj);
+int dataBaseFriendInsert(const char *name, const char *friendName, int acceptfd, int onlineStatus, const char *priviteMessage);
 #endif
