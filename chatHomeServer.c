@@ -17,6 +17,7 @@
 #include "dataBase.h"
 #include <signal.h>
 #include <string.h>
+#include <stddef.h>
 #include "balanceBinarySearchTree.h"
 #define SERVER_PORT 8880
 #define MAX_LISTEN 128
@@ -61,7 +62,9 @@ int compareFunc(void *arg1, void *arg2)
     USER val1 = *(USER *)arg1;
     USER val2 = *(USER *)arg2;
     printf("val1:%s = val2:%s\n", val1.name, val2.name);
-    return strncmp(val1.name, val2.name, strlen(val1.name));
+    size_t len1 = strlen(val1.name);
+    size_t len2 = strlen(val2.name);
+    return strncmp(val1.name, val2.name, len1 < len2 ? len1 : len2);
 }
 
 void *accept_handler(void *arg)
@@ -100,7 +103,6 @@ void *communicate_handler(void *arg)
     int ret = 0;
 
     USER *currentUser = calloc(1, sizeof(USER));
-    printf("-------\n");
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     if (readBytes < 0)
     {
@@ -162,9 +164,58 @@ void *communicate_handler(void *arg)
             }
         }
         /*功能在if中加*/
-        else if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
+        else if (json_object_get_int(json_object_object_get(parseObj, "choices")) == LOGIN)
         {
-            /*todo....*/
+            /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
+            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
+            strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
+            // /*查找该用户的密码是否与对应密码匹配*/
+            // ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
+            AVLTreeNode *matchNode = baseAppointValGetAVLTreeNode(AVL, (void *)currentUser);
+            if (matchNode != NULL)
+            {
+                /*若匹配结点不为空说明账号正确，此时确认密码是否正确*/
+                /*将matchNode中的data强转为USR型，否则strncmp会调用错误*/
+                USER *nodeUser = (USER *)matchNode->data;
+                size_t len1 = strlen(nodeUser->password);
+                size_t len2 = strlen(currentUser->password);
+                if (strncmp(nodeUser->password, currentUser->password, len1 < len2 ? len1 : len2) == 0)
+                {
+                    /*如果匹配*/
+                    strncpy(sendBuffer, "登陆成功\n", sizeof(sendBuffer) - 1);
+                    int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                    if (retwrite == -1)
+                    {
+                        perror("write error");
+                    }
+                    json_object_put(parseObj); // 释放 parseObj
+                    sleep(2);
+                }
+                else
+                {
+                    /*密码不匹配，重新登录*/
+                    strncpy(sendBuffer, "密码不正确,请重新登陆\n", sizeof(sendBuffer) - 1);
+                    int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                    if (retwrite == -1)
+                    {
+                        perror("write error");
+                    }
+                    json_object_put(parseObj); // 释放 parseObj
+                    sleep(2);
+                }
+            }
+            else
+            {
+                /*如果匹配结点为空则说明输入的账户不存在*/
+                strncpy(sendBuffer, "用户不存在,请重新输入或者注册\n", sizeof(sendBuffer) - 1);
+                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                if (retwrite == -1)
+                {
+                    perror("write error");
+                }
+                json_object_put(parseObj); // 释放 parseObj
+                sleep(2);
+            }
         }
     }
 

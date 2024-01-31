@@ -5,7 +5,7 @@ TARGET=libSoMyTree.so
 
 #使用$(TARGET)，必须要加$符号
 $(TARGET):$(OBJ)
-	$(CC) $^ -g -shared -fPIC -o $@
+	$(CC) $^ -shared -fPIC -o $@
 	cp $(TARGET) /usr/lib/
 %.o:%.c
 	$(CC) -c $^ -o $@

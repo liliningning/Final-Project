@@ -22,8 +22,6 @@ enum STATUS_CODE
 static int compareFunc(ELEMENTTYPE val1, ELEMENTTYPE val2);
 /* 创建结点 */
 static AVLTreeNode *createAVLTreeNewNode(ELEMENTTYPE val, AVLTreeNode *parent);
-/* 根据指定的值获取二叉搜索树的结点 */
-static AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstree, ELEMENTTYPE val);
 /* 判断二叉搜索树度为2 */
 static int balanceBinarySearchTreeNodeHasTwochildrens(AVLTreeNode *node);
 /* 判断二叉搜索树度为1 */
@@ -717,8 +715,12 @@ int balanceBinarySearchTreeLevelOrderTravel(BalanceBinarySearchTree *pBstree)
 }
 
 /* 根据指定的值获取二叉搜索树的结点 */
-static AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstree, ELEMENTTYPE val)
+AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstree, ELEMENTTYPE val)
 {
+    if (pBstree == NULL)
+    {
+        return NULL;
+    }
     AVLTreeNode *travelNode = pBstree->root;
     int cmp = 0;
     while (travelNode != NULL)
@@ -736,11 +738,9 @@ static AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstre
         else
         {
             /* 找到了. */
-            printf("found!!!\n");
             return travelNode;
         }
     }
-    printf("not found\n");
     return NULL;
 }
 

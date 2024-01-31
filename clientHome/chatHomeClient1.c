@@ -22,6 +22,39 @@ typedef enum USER_OPTIONS
 
 static int clientLogIn(int sockfd)
 {
+    int ret = 0;
+    int demand = LOGIN;
+
+    struct json_object *registerObj = json_object_new_object();
+
+    /*账号*/
+    char accountNumber[BUFFER_SIZE];
+    /*密码*/
+    char *passwordNumber = calloc(BUFFER_SIZE, sizeof(char));
+    printf("请输入账号\n");
+    scanf("%s", accountNumber);
+    while (getchar() != '\n')
+        ;
+    /*密码要求*/
+    printf("请输入密码:\n");
+    scanf("%s", passwordNumber);
+    while (getchar() != '\n')
+        ;
+    printf("check valid------------ing-----------\n");
+    json_object_object_add(registerObj, "choices", json_object_new_int(demand));
+    json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
+    json_object_object_add(registerObj, "password", json_object_new_string(passwordNumber));
+    const char *sendStr = json_object_to_json_string(registerObj);
+    int len = strlen(sendStr);
+
+    /*将json对象转化为字符串发给服务器*/
+    int retWrite = write(sockfd, sendStr, len + 1);
+    if (retWrite == -1)
+    {
+        perror("write error");
+    }
+
+    return ret;
 }
 static int clientRegister(int sockfd)
 {
@@ -134,6 +167,7 @@ int main()
         case REGISTER:
         {
             clientRegister(sockfd);
+            /*睡一会，等待函数执行*/
             sleep(2);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
             if (ret == -1)
@@ -146,6 +180,14 @@ int main()
         case LOGIN:
         {
             clientLogIn(sockfd);
+            /*睡一会，等待函数执行*/
+            sleep(2);
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
             break;
         }
         default:
