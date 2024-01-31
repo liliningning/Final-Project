@@ -4,8 +4,7 @@ OBJ=$(patsubst %.c,%.o,$(wildcard ./*.c))
 TARGET=server
 
 LDFLAGS=-L./src_so
-LIBS=-lSoMyTree
-LIBS=-ljson-c -lsqlite3
+LIBS=-ljson-c -lsqlite3 -lSoMyTree
 #使用$(TARGET)，必须要加$符号
 $(TARGET):$(OBJ)
 	$(CC) $^ $(LDFLAGS) $(LIBS)  -o $@

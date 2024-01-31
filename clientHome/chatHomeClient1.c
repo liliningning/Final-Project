@@ -20,10 +20,10 @@ typedef enum USER_OPTIONS
     LOGIN = 2,
 } USER_OPTIONS;
 
-static int clientRegister(int sockfd)
+static int clientLogIn(int sockfd)
 {
 }
-static int clientSignUp(int sockfd)
+static int clientRegister(int sockfd)
 {
     int ret = 0;
     int demand = REGISTER;
@@ -131,9 +131,9 @@ int main()
             ;
         switch (choices)
         {
-        case SIGNUP:
+        case REGISTER:
         {
-            clientSignUp(sockfd);
+            clientRegister(sockfd);
             sleep(2);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
             if (ret == -1)
@@ -143,9 +143,9 @@ int main()
             printf("提示:%s\n", recvBuffer);
             break;
         }
-        case REGISTER:
+        case LOGIN:
         {
-            clientRegister(sockfd);
+            clientLogIn(sockfd);
             break;
         }
         default:

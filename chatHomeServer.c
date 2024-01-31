@@ -17,6 +17,7 @@
 #include "dataBase.h"
 #include <signal.h>
 #include <string.h>
+#include "balanceBinarySearchTree.h"
 #define SERVER_PORT 7777
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -25,8 +26,10 @@
 #define MAX_CAPACITY 10
 #define MAX_QUEUE_CA 50
 #define EVENT_SIZE 1024
+/*全局变量，方便捕捉信号后释放资源*/
 ThreadPool *pool = NULL;
 int sockfd;
+BalanceBinarySearchTree *AVL = NULL;
 enum CODE_STATUS
 {
     REPEATED_USER = -1,
@@ -44,6 +47,15 @@ typedef enum USER_OPTIONS
     LOGIN = 2,
 } USER_OPTIONS;
 /*线程处理函数*/
+
+/* 测试二叉搜索树 */
+int compareFunc(void *arg1, void *arg2)
+{
+    int val1 = *(int *)arg1;
+    int val2 = *(int *)arg2;
+
+    return val1 - val2;
+}
 
 void *accept_handler(void *arg)
 {
@@ -148,17 +160,25 @@ void signal_handler(int sig)
     poolDestroy(pool);
     /*关闭文件描述符*/
     close(sockfd);
+    balanceBinarySearchTreeDestroy(AVL);
     printf("获取中断信号,退出服务器...\n");
     sleep(2);
     exit(-1);
 }
+int dataBaseToMemory()
+{
+}
 int main()
 {
+    /*初始化树，线程池，数据库*/
+    balanceBinarySearchTreeInit(&AVL, compareFunc, NULL);
+    /*将数据库中的信息存入内存*/
+    dataBaseToMemory();
+    dataBaseInit();
+    poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
+
     /*捕捉退出信号*/
     signal(SIGINT, signal_handler);
-    dataBaseInit();
-    /*初始化线程池*/
-    poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
 
     /* 创建socket套接字 */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
