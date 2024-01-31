@@ -9,17 +9,17 @@ typedef struct AVLTreeNode
     ELEMENTTYPE data;
     /* 结点维护一个高度属性 */
     int height;
-    struct AVLTreeNode *left;        /* 左子树 */
-    struct AVLTreeNode *right;       /* 右子树 */
-    #if 1
-    struct AVLTreeNode *parent;      /* 父结点 */
-    #endif
+    struct AVLTreeNode *left;  /* 左子树 */
+    struct AVLTreeNode *right; /* 右子树 */
+#if 1
+    struct AVLTreeNode *parent; /* 父结点 */
+#endif
 } AVLTreeNode;
 
 typedef struct BalanceBinarySearchTree
-{   
+{
     /* 根结点 */
-    AVLTreeNode * root;
+    AVLTreeNode *root;
     /* 树的结点个数 */
     int size;
 
@@ -72,4 +72,4 @@ int balanceBinarySearchTreeDestroy(BalanceBinarySearchTree *pBstree);
 /* 判断二叉搜索树是否是完全二叉树 */
 int balanceBinarySearchTreeIsComplete(BalanceBinarySearchTree *pBSTree);
 
-#endif  //__BINARY_SEARCH_TREE_H_
+#endif //__BINARY_SEARCH_TREE_H_

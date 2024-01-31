@@ -99,6 +99,7 @@ void *communicate_handler(void *arg)
     /*判断函数返回值*/
     int ret = 0;
 
+    USER *currentUser = calloc(1, sizeof(USER));
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     if (readBytes < 0)
     {
@@ -122,9 +123,12 @@ void *communicate_handler(void *arg)
         {
             printf("%s\n", recvbuffer);
 
+            /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
+            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "name")), sizeof(currentUser->name) - 1);
+            strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
             /*检查用户名有无重复*/
-            ret = dataBaseDuplicateCheck(parseObj);
-            if (ret != ON_SUCCESS)
+            ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
+            if (ret == ON_SUCCESS)
             {
                 /*有重复*/
                 strncpy(sendBuffer, "美名尚存,另寻他名\n", sizeof(sendBuffer) - 1);
@@ -138,6 +142,9 @@ void *communicate_handler(void *arg)
             else
             {
                 /*无重复*/
+                /*插入数据树*/
+                balanceBinarySearchTreeInsert(AVL, (void *)currentUser);
+                /*插入数据库*/
                 ret = dataBaseUserInsert(parseObj);
                 if (ret != ON_SUCCESS)
                 {
