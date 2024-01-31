@@ -16,7 +16,8 @@
 #include <sys/epoll.h>
 #include "dataBase.h"
 #include <signal.h>
-#define SERVER_PORT 8888
+#include <string.h>
+#define SERVER_PORT 7777
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -26,12 +27,11 @@
 #define EVENT_SIZE 1024
 ThreadPool *pool = NULL;
 int sockfd;
-void sigHander(int sigNum)
+enum CODE_STATUS
 {
-    int ret = 0;
-    /* 资源回收 */
-    /* todo... */
-}
+    REPEATED_USER = -1,
+    ON_SUCCESS,
+};
 typedef struct Fdset
 {
     int acceptfd;
@@ -40,8 +40,8 @@ typedef struct Fdset
 } Fdset;
 typedef enum USER_OPTIONS
 {
-    REGISTER,
-    SIGNUP,
+    SIGNUP = 1,
+    REGISTER = 2,
 } USER_OPTIONS;
 /*线程处理函数*/
 
@@ -74,8 +74,11 @@ void *communicate_handler(void *arg)
     char sendBuffer[BUFFER_SIZE];
     memset(sendBuffer, 0, sizeof(sendBuffer));
     int readBytes = 0;
+    /*解析json对象*/
     struct json_object *parseObj = calloc(1, sizeof(parseObj));
     int demand = 0;
+    /*判断函数返回值*/
+    int ret = 0;
 
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     if (readBytes < 0)
@@ -94,23 +97,36 @@ void *communicate_handler(void *arg)
     }
     else
     {
+        parseObj = json_tokener_parse(recvbuffer);
         /*接受消息*/
         if (json_object_get_int(json_object_object_get(parseObj, "choices")) == SIGNUP)
         {
-            /* sqlite3 *db;
-            int sqliteRet = sqlite3_open("./chatdb", &db); // 打开数据库
-
-            // 构建sq语句
-
-            // 执行sql
-
-            // 如果执行成功，给客户端发送回馈*/
-            /*注册函数*/
             printf("%s\n", recvbuffer);
-            parseObj = json_tokener_parse(recvbuffer);
-            struct json_object *acountVal = json_object_object_get(parseObj, "account");
 
-            printf("client massage=%s\n", json_object_get_string(acountVal));
+            /*检查用户名有无重复*/
+            ret = dataBaseDuplicateCheck(parseObj);
+            if (ret != ON_SUCCESS)
+            {
+                /*有重复*/
+                strncpy(sendBuffer, "账户已重复,请重新输入\n", sizeof(sendBuffer) - 1);
+                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                if (retwrite == -1)
+                {
+                    perror("write error");
+                }
+                sleep(2);
+            }
+            else
+            {
+                /*无重复*/
+                ret = dataBaseUserInsert(parseObj);
+                if (ret != ON_SUCCESS)
+                {
+                    printf("dataBaseUserInsert error\n");
+                }
+                printf("注册成功,请重新登录\n");
+                sleep(2);
+            }
         }
         else if (strncmp(recvbuffer, "778", strlen("778")) == 0)
         {
@@ -121,23 +137,23 @@ void *communicate_handler(void *arg)
 
     pthread_exit(NULL);
 }
-void signal_hanlder(int sig)
+void signal_handler(int sig)
 {
 
     poolDestroy(pool);
     /*关闭文件描述符*/
     close(sockfd);
+    printf("获取中断信号,退出服务器...\n");
+    sleep(2);
+    exit(-1);
 }
 int main()
 {
-    signal(SIGINT, signal_hanlder);
+    /*捕捉退出信号*/
+    signal(SIGINT, signal_handler);
     dataBaseInit();
     /*初始化线程池*/
     poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
-    /* 信号注册 */
-    // signal(SIGINT, sigHander);
-    // signal(SIGQUIT, sigHander);
-    // signal(SIGTSTP, sigHander);
 
     /* 创建socket套接字 */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);

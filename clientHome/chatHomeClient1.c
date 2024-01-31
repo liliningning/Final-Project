@@ -10,18 +10,23 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 8888
+#define SERVER_PORT 7777
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
 
 typedef enum USER_OPTIONS
 {
-    REGISTER = 1,
+    SIGNUP = 1,
+    REGISTER = 2,
 } USER_OPTIONS;
+
 static int clientRegister(int sockfd)
 {
+}
+static int clientSignUp(int sockfd)
+{
     int ret = 0;
-    int demand = REGISTER;
+    int demand = SIGNUP;
 
     struct json_object *registerObj = json_object_new_object();
 
@@ -29,7 +34,8 @@ static int clientRegister(int sockfd)
     char *passwordNumber = calloc(BUFFER_SIZE, sizeof(char));
     printf("请输入账号\n");
     scanf("%s", accountNumber);
-    getchar();
+    while (getchar() != '\n')
+        ;
     /*账号查重todo...*/
     /*备份passwordNumber*/
     char *accord = passwordNumber;
@@ -39,7 +45,8 @@ static int clientRegister(int sockfd)
         /*密码要求*/
         printf("请输入密码(密码不少于8位且必须包含字符和数字):\n");
         scanf("%s", passwordNumber);
-        getchar();
+        while (getchar() != '\n')
+            ;
         int numCount = 0;
         int characterCount = 0;
         while (*passwordNumber != '\0')
@@ -69,10 +76,13 @@ static int clientRegister(int sockfd)
     json_object_object_add(registerObj, "password", json_object_new_string(accord));
     const char *sendStr = json_object_to_json_string(registerObj);
     int len = strlen(sendStr);
-    write(sockfd, sendStr, len + 1);
 
-    printf("注册成功\n");
-    sleep(2);
+    /*将json对象转化为字符串发给服务器*/
+    int retWrite = write(sockfd, sendStr, len + 1);
+    if (retWrite == -1)
+    {
+        perror("write error");
+    }
 
     return ret;
 }
@@ -114,16 +124,30 @@ int main()
     {
 #if 1
         printf("请输入选项:\n");
-        printf("1.注册\n");
+        printf("1.注册\n2.登录\n");
         scanf("%d", &choices);
+        /*去除行缓存*/
+        while (getchar() != '\n')
+            ;
         switch (choices)
         {
+        case SIGNUP:
+        {
+            clientSignUp(sockfd);
+            sleep(2);
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("recvBuffer=%s\n", recvBuffer);
+            break;
+        }
         case REGISTER:
         {
             clientRegister(sockfd);
             break;
         }
-
         default:
             break;
         }
