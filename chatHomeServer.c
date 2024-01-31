@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <string.h>
 #include "balanceBinarySearchTree.h"
-#define SERVER_PORT 7777
+#define SERVER_PORT 8880
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -26,7 +26,7 @@
 #define MAX_CAPACITY 10
 #define MAX_QUEUE_CA 50
 #define EVENT_SIZE 1024
-#define USER_SIZE 32
+#define USER_SIZE 128
 /*全局变量，方便捕捉信号后释放资源*/
 ThreadPool *pool = NULL;
 int sockfd;
@@ -60,7 +60,7 @@ int compareFunc(void *arg1, void *arg2)
 {
     USER val1 = *(USER *)arg1;
     USER val2 = *(USER *)arg2;
-
+    printf("val1:%s = val2:%s\n", val1.name, val2.name);
     return strncmp(val1.name, val2.name, strlen(val1.name));
 }
 
@@ -100,6 +100,7 @@ void *communicate_handler(void *arg)
     int ret = 0;
 
     USER *currentUser = calloc(1, sizeof(USER));
+    printf("-------\n");
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     if (readBytes < 0)
     {
@@ -121,10 +122,9 @@ void *communicate_handler(void *arg)
         /*接受消息*/
         if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
-            printf("%s\n", recvbuffer);
 
             /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
-            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "name")), sizeof(currentUser->name) - 1);
+            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
             strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
             /*检查用户名有无重复*/
             ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
@@ -137,6 +137,7 @@ void *communicate_handler(void *arg)
                 {
                     perror("write error");
                 }
+                json_object_put(parseObj); // 释放 parseObj
                 sleep(2);
             }
             else
@@ -156,12 +157,14 @@ void *communicate_handler(void *arg)
                 {
                     perror("write error");
                 }
+                json_object_put(parseObj); // 释放 parseObj
                 sleep(2);
             }
         }
         /*功能在if中加*/
-        else if (strncmp(recvbuffer, "778", strlen("778")) == 0)
+        else if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
+            /*todo....*/
         }
     }
 
@@ -180,36 +183,49 @@ void signal_handler(int sig)
 }
 int dataBaseToMemory(sqlite3 *db, BalanceBinarySearchTree *avl)
 {
-    USER *dataBaseUser = calloc(1, sizeof(USER));
+
     sqlite3_open("chatBase.db", &db);
     char *errormsg = NULL;
     const char *sql = "select * from user";
     char **result = NULL;
     int row = 0;
     int column = 0;
-    int ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    int ret = sqlite3_get_table(db, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec error2:%s\n", errormsg);
         exit(-1);
     }
-    for (int idx = column; idx < (row * column); idx = idx + 2)
+    /*略过表头，从第二行开始插入*/
+    for (int idx = column; idx < (row + 1) * column; idx = idx + 2)
     {
+        USER *dataBaseUser = calloc(1, sizeof(USER));
         strncpy(dataBaseUser->name, result[idx], sizeof(dataBaseUser->name) - 1);
         strncpy(dataBaseUser->password, result[idx + 1], sizeof(dataBaseUser->password) - 1);
         balanceBinarySearchTreeInsert(avl, (void *)dataBaseUser);
     }
+
     sqlite3_close(db);
+    return ON_SUCCESS;
+}
+/* 打印数据 */
+int printStructData(void *arg)
+{
+    int ret = 0;
+    USER val = *(USER *)arg;
+    printf("val.name:%s\tval.password:%s\t", val.name, val.password);
+    return ret;
 }
 int main()
 {
     /*初始化树，线程池，数据库*/
-    balanceBinarySearchTreeInit(&AVL, compareFunc, NULL);
+    balanceBinarySearchTreeInit(&AVL, compareFunc, printStructData);
     /*将数据库中的信息存入内存*/
     dataBaseToMemory(mydb, AVL);
     dataBaseInit(&mydb);
     poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
-
+    balanceBinarySearchTreeLevelOrderTravel(AVL);
+    sleep(2);
     /*捕捉退出信号*/
     signal(SIGINT, signal_handler);
 

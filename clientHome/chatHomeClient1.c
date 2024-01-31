@@ -10,7 +10,7 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 7777
+#define SERVER_PORT 8880
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
 
@@ -70,7 +70,7 @@ static int clientRegister(int sockfd)
             checkout = 1;
         }
     }
-    printf("check-----------------------\n");
+    printf("check valid------------ing-----------\n");
     json_object_object_add(registerObj, "choices", json_object_new_int(demand));
     json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
     json_object_object_add(registerObj, "password", json_object_new_string(accord));

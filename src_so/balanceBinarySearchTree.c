@@ -3,7 +3,7 @@
 #include <string.h>
 #include "doubleLinkListQueue.h"
 #include <math.h>
-
+#include <stdio.h>
 /* 状态码 */
 enum STATUS_CODE
 {
@@ -720,7 +720,6 @@ int balanceBinarySearchTreeLevelOrderTravel(BalanceBinarySearchTree *pBstree)
 static AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstree, ELEMENTTYPE val)
 {
     AVLTreeNode *travelNode = pBstree->root;
-
     int cmp = 0;
     while (travelNode != NULL)
     {
@@ -737,9 +736,11 @@ static AVLTreeNode *baseAppointValGetAVLTreeNode(BalanceBinarySearchTree *pBstre
         else
         {
             /* 找到了. */
+            printf("found!!!\n");
             return travelNode;
         }
     }
+    printf("not found\n");
     return NULL;
 }
 
