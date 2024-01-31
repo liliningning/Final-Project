@@ -16,8 +16,8 @@
 
 typedef enum USER_OPTIONS
 {
-    SIGNUP = 1,
-    REGISTER = 2,
+    REGISTER = 1,
+    LOGIN = 2,
 } USER_OPTIONS;
 
 static int clientRegister(int sockfd)
@@ -26,7 +26,7 @@ static int clientRegister(int sockfd)
 static int clientSignUp(int sockfd)
 {
     int ret = 0;
-    int demand = SIGNUP;
+    int demand = REGISTER;
 
     struct json_object *registerObj = json_object_new_object();
 
@@ -140,7 +140,7 @@ int main()
             {
                 perror("read error");
             }
-            printf("recvBuffer=%s\n", recvBuffer);
+            printf("提示:%s\n", recvBuffer);
             break;
         }
         case REGISTER:

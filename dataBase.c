@@ -46,9 +46,8 @@ int dataBaseDuplicateCheck(struct json_object *parseObj)
     /*从解析后的对象中获取账户和密码*/
     struct json_object *acountVal = json_object_object_get(parseObj, "account");
     struct json_object *passwordVal = json_object_object_get(parseObj, "password");
-    /*插入用户信息*/
+    /*查询用户民是否存在数据库当中*/
     char *errormsg = NULL;
-
     char sql[SQL_SIZE] = {0};
     sprintf(sql, "select name from user where name='%s'", json_object_get_string(acountVal));
     char **result = NULL;
@@ -60,11 +59,13 @@ int dataBaseDuplicateCheck(struct json_object *parseObj)
         printf("sqlite3_exec error2:%s\n", errormsg);
         exit(-1);
     }
+    /*如果重复，返回REPEATED_USER*/
     if (strcmp(json_object_get_string(acountVal), result[1]) == 0)
     {
         return REPEATED_USER;
     }
     sqlite3_close(mydb);
+    /*如果不重复，返回ON_SUCCESS*/
     return ON_SUCCESS;
 }
 int dataBaseUserInsert(struct json_object *parseObj)

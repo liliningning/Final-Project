@@ -40,8 +40,8 @@ typedef struct Fdset
 } Fdset;
 typedef enum USER_OPTIONS
 {
-    SIGNUP = 1,
-    REGISTER = 2,
+    REGISTER = 1,
+    LOGIN = 2,
 } USER_OPTIONS;
 /*线程处理函数*/
 
@@ -99,7 +99,7 @@ void *communicate_handler(void *arg)
     {
         parseObj = json_tokener_parse(recvbuffer);
         /*接受消息*/
-        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == SIGNUP)
+        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
             printf("%s\n", recvbuffer);
 
@@ -108,7 +108,7 @@ void *communicate_handler(void *arg)
             if (ret != ON_SUCCESS)
             {
                 /*有重复*/
-                strncpy(sendBuffer, "账户已重复,请重新输入\n", sizeof(sendBuffer) - 1);
+                strncpy(sendBuffer, "美名尚存,另寻他名\n", sizeof(sendBuffer) - 1);
                 int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                 if (retwrite == -1)
                 {
@@ -124,7 +124,12 @@ void *communicate_handler(void *arg)
                 {
                     printf("dataBaseUserInsert error\n");
                 }
-                printf("注册成功,请重新登录\n");
+                strncpy(sendBuffer, "注册成功了，开始冲浪吧\n", sizeof(sendBuffer) - 1);
+                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                if (retwrite == -1)
+                {
+                    perror("write error");
+                }
                 sleep(2);
             }
         }
