@@ -14,6 +14,8 @@
 #include <json-c/json.h>
 #include <json-c/json_object.h>
 #include <sys/epoll.h>
+#include "dataBase.h"
+#include <signal.h>
 #define SERVER_PORT 8888
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -22,12 +24,14 @@
 #define MAX_CAPACITY 10
 #define MAX_QUEUE_CA 50
 #define EVENT_SIZE 1024
-// void sigHander(int sigNum)
-// {
-//     int ret = 0;
-//     /* 资源回收 */
-//     /* todo... */
-// }
+ThreadPool *pool = NULL;
+int sockfd;
+void sigHander(int sigNum)
+{
+    int ret = 0;
+    /* 资源回收 */
+    /* todo... */
+}
 typedef struct Fdset
 {
     int acceptfd;
@@ -37,6 +41,7 @@ typedef struct Fdset
 typedef enum USER_OPTIONS
 {
     REGISTER,
+    SIGNUP,
 } USER_OPTIONS;
 /*线程处理函数*/
 
@@ -90,7 +95,7 @@ void *communicate_handler(void *arg)
     else
     {
         /*接受消息*/
-        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
+        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == SIGNUP)
         {
             /* sqlite3 *db;
             int sqliteRet = sqlite3_open("./chatdb", &db); // 打开数据库
@@ -116,12 +121,18 @@ void *communicate_handler(void *arg)
 
     pthread_exit(NULL);
 }
-
-int main()
+void signal_hanlder(int sig)
 {
 
+    poolDestroy(pool);
+    /*关闭文件描述符*/
+    close(sockfd);
+}
+int main()
+{
+    signal(SIGINT, signal_hanlder);
+    dataBaseInit();
     /*初始化线程池*/
-    ThreadPool *pool = NULL;
     poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
     /* 信号注册 */
     // signal(SIGINT, sigHander);
@@ -129,7 +140,7 @@ int main()
     // signal(SIGTSTP, sigHander);
 
     /* 创建socket套接字 */
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1)
     {
         perror("socket error");
@@ -244,8 +255,5 @@ int main()
         }
     }
 
-    poolDestroy(pool);
-    /*关闭文件描述符*/
-    close(sockfd);
     return 0;
 }

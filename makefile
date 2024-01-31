@@ -5,7 +5,7 @@ TARGET=server
 
 #LDFLAGS=-L./src_a -L./src_so
 #LIBS=-lAMydiv -lSoMyadd
-LIBS=-ljson-c
+LIBS=-ljson-c -lsqlite3
 #使用$(TARGET)，必须要加$符号
 $(TARGET):$(OBJ)
 	$(CC) $^ $(LDFLAGS) $(LIBS)  -o $@
