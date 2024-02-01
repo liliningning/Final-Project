@@ -10,7 +10,7 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 8879
+#define SERVER_PORT 8878
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
 #define SUCCESS_LOGIN "登陆成功"
@@ -47,7 +47,7 @@ static int clientLogIn(int sockfd)
     scanf("%s", passwordNumber);
     while (getchar() != '\n')
         ;
-    printf("check valid------------ing-----------\n");
+    printf("check whether valid------------ing-----------\n");
     json_object_object_add(registerObj, "choices", json_object_new_int(demand));
     json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
     json_object_object_add(registerObj, "password", json_object_new_string(passwordNumber));
@@ -60,7 +60,7 @@ static int clientLogIn(int sockfd)
     {
         perror("write error");
     }
-
+    printf("client over\n");
     return ret;
 }
 static int clientRegister(int sockfd)
@@ -163,6 +163,8 @@ int main()
     while (strcmp(recvBuffer, SUCCESS_LOGIN))
     {
 #if 1
+        printf("正在加载页面...\n");
+        sleep(2);
         printf("请输入选项:\n");
         printf("1.注册\n2.登录\n");
         scanf("%d", &choices);

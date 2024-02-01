@@ -19,7 +19,7 @@
 #include <string.h>
 #include <stddef.h>
 #include "balanceBinarySearchTree.h"
-#define SERVER_PORT 8879
+#define SERVER_PORT 8878
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -102,10 +102,11 @@ void *communicate_handler(void *arg)
     int readBytes = 0;
     /*解析json对象*/
     struct json_object *parseObj = calloc(1, sizeof(parseObj));
+    parseObj = json_tokener_parse(recvbuffer);
+    /*命令变量*/
     int demand = 0;
     /*判断函数返回值*/
     int ret = 0;
-
     USER *currentUser = calloc(1, sizeof(USER));
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     if (readBytes < 0)
@@ -124,11 +125,20 @@ void *communicate_handler(void *arg)
         pthread_mutex_lock(&g_mutex);
         epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
         pthread_mutex_unlock(&g_mutex);
+        /*将数据库的上线状态改为下线状态*/
+        pthread_mutex_lock(&g_mutex);
+        ret = dataBaseUpdateOnlineStatus(parseObj);
+        pthread_mutex_unlock(&g_mutex);
+        if (ret != ON_SUCCESS)
+        {
+            printf("dataBaseUpdateOnlineStatus error\n");
+        }
+        sleep(2);
         close(fdset->acceptfd);
     }
     else
     {
-        parseObj = json_tokener_parse(recvbuffer);
+
         /*接受消息*/
         if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
