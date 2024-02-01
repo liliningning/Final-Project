@@ -44,6 +44,9 @@ void onemenu()
 }
 
 
+
+
+
 /* 二级聊天室 登录成功后跳转 */
 void  twomenu()
 {
@@ -160,12 +163,6 @@ static int clientRegister(int sockfd)
     }
     return ret;
 }
-
-int  groupchat()
-{   
-
-}   
-
 
 int main()
 {

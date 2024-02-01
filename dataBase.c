@@ -101,7 +101,7 @@ int dataBaseUserInsert(struct json_object *parseObj)
 
 
 /* 数据库的删除 */
-int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, char *private)
+int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, char *priviteMessage)
 {
      sqlite3 *mydb = NULL;
     /*打开数据库*/
@@ -111,10 +111,17 @@ int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, ch
         perror("sqlite3_open error");
         exit(-1);
     }
-    /*从解析后的对象中获取账户和密码*/
-    
-    
-    
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = { 0 };
+    sprintf(sql, "alter table friend drop '%s'",friendName);
+    sprintf(sql, "alter table friend drop '%s'",acceptfd);
+    sprintf(sql, "alter table friend drop '%s'",priviteMessage);
 
-
+    ret = sqlite3_exec(mydb, sql,NULL, NULL , &errormsg);
+    if(ret == SQLITE_OK)
+    {
+        printf("sqlite3 drop error %s", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
 }
