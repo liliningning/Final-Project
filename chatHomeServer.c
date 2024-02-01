@@ -95,7 +95,7 @@ int groupChat(int sockfd, int groupname, int name)
 
 /* 添加好友 */
 
-int addFrined(int name )
+int addFrined(int name)
 {
     /* 在用户表里面找到与该名字相同的好友 */
 
@@ -106,23 +106,15 @@ int addFrined(int name )
     int ret = dataBaseDuplicateCheck(parsonObj);
     if (ret == REPEATED_USER)
     {
-            /* 执行新增的插入好友表的函数 */
+        /* 执行新增的插入好友表的函数 */
     }
 }
 /* 删除好友 */
-void deleteFriend()
+void deleteFriend(int name, int friendName)
 {
-    /* 找到该名字的好友*/
-     struct json_object *parsonObj = calloc(1, sizeof(parsonObj));
-
-    /* 如果找到 */
-    int ret = dataBaseDuplicateCheck(parsonObj);
-    if (ret == REPEATED_USER)
-    {
-        
-    }
-
-    
+    /* 执行删除语句 */
+    dataBaseFriendDelete(name, friendName);
+    printf("删除好友成功！");
 }
 
 /*线程处理函数*/

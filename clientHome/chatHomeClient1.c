@@ -26,7 +26,7 @@ typedef enum USER_OPTIONS
 
 typedef enum USER_TWO
 {
-    EXIT,
+    EXIT = 3,
     PRIVECHAT,
     GROUPCHAT,
 } USER_TWO;
@@ -52,14 +52,14 @@ void  twomenu()
 {
     printf("\t-------------------------------------\n");
     printf("\t|                                   |\n");
-    printf("\t|    1:私聊                         |\n");
-    printf("\t|    2:群聊                         |\n");
-    printf("\t|    3:xxxx                         |\n");
-    printf("\t|    4:xxxx                         |\n");
-    printf("\t|    5:xxxx                         |\n");
-    printf("\t|                                   |\n");    
+    printf("\t|    1:添加好友                         |\n");
+    printf("\t|    2:好友请求                         |\n");
+    printf("\t|    3:删除好友                         |\n");
+    printf("\t|    4:给好友发送消息                         |\n");
+    printf("\t|                                   |\n");
     printf("\t-------------------------------------\n");
 }
+
 
 
 /* 注册 */
@@ -163,6 +163,13 @@ static int clientRegister(int sockfd)
     }
     return ret;
 }
+
+
+
+
+
+
+
 
 int main()
 {

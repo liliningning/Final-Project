@@ -11,6 +11,13 @@ int dataBaseDuplicateCheck(struct json_object *parseObj);
 /* 数据库的插入 */
 int dataBaseUserInsert(struct json_object *parseObj);
 
-/* 数据库的删除 */
-int dataBaseDelete(struct json_object *parseObj);
+/* 好有表数据库的删除 */
+int dataBaseFriendDelete(const char * name , const  char * friendName);
+
+/* 好友表的查询 */
+int dataBaseFriendSelect(const char *friendName);
+
+
+
+
 #endif

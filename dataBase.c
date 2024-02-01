@@ -99,9 +99,8 @@ int dataBaseUserInsert(struct json_object *parseObj)
     return ON_SUCCESS;
 }
 
-
-/* 数据库的删除 */
-int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, char *priviteMessage)
+/* 好友表数据库的删除 */
+int dataBaseFriendDelete(const char * name , const  char * friendName)
 {
      sqlite3 *mydb = NULL;
     /*打开数据库*/
@@ -113,9 +112,7 @@ int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, ch
     }
     char *errormsg = NULL;
     char sql[SQL_SIZE] = { 0 };
-    sprintf(sql, "alter table friend drop '%s'",friendName);
-    sprintf(sql, "alter table friend drop '%s'",acceptfd);
-    sprintf(sql, "alter table friend drop '%s'",priviteMessage);
+    sprintf(sql, "delete from friend where name = '%s'  and friendName= '%s'  ", name , friendName);
 
     ret = sqlite3_exec(mydb, sql,NULL, NULL , &errormsg);
     if(ret == SQLITE_OK)
@@ -124,4 +121,31 @@ int dataBaseDelete(const char * name, const  char * friendName, int acceptfd, ch
         exit(-1);
     }
     sqlite3_close(mydb);
+}
+
+
+
+/* 好友表的查询 */
+int dataBaseFriendSelect(const char *friendName)
+{
+     sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = { 0 };
+    sprintf("select * from friend where friendName = '%s'", friendName);
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error2:%s\n", errormsg);
+        exit(-1);
+    }
 }
