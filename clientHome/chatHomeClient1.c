@@ -26,9 +26,11 @@ typedef enum USER_OPTIONS
 
 typedef enum USER_TWO
 {
-    EXIT = 3,
-    PRIVECHAT,
-    GROUPCHAT,
+    ADD_FRIEND,
+    FRIEND_APPLICATION,
+    DELETE_FRIREND,
+    SEND_MESSAGE,
+
 } USER_TWO;
 
 /* 主页面 */
@@ -165,7 +167,10 @@ static int clientRegister(int sockfd)
 }
 
 
+void addFrined(int sockfd)
+{
 
+}
 
 
 
@@ -266,6 +271,78 @@ int main()
 
         sleep(1);
 #endif
+    }
+
+      /*登录成功*/
+    while (1)
+    {   twomenu();
+        printf("请输入选项:\n");
+        scanf("%d", &choices);
+        /*去除行缓存*/
+        while (getchar() != '\n')
+            ;
+        switch (choices)
+        {
+        case ADD_FRIEND:
+        {
+            /* 给服务器发送消息 然后服务器进行处理 */
+            strncpy(sendBuffer, "添加好友", sizeof(sendBuffer));
+            int retWrite = write(sockfd, sendBuffer, sizeof(sendBuffer) - 1);
+            if(retWrite == -1)
+            {
+                perror("write error");
+            }
+            /* 服务器回的消息 */
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
+            break;
+        }
+        case FRIEND_APPLICATION:
+        {
+            strncpy(sendBuffer, "你好 可以加个好友吗", sizeof(sendBuffer) - 1);
+            int  retWrite = write(sockfd, sendBuffer, sizeof(sendBuffer) - 1);
+            if(retWrite == -1)
+            {
+                perror("write error");
+            }
+            /* 服务器回的消息 */
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
+
+            break;
+        }
+        case DELETE_FRIREND:
+        {
+            strncpy(sendBuffer, "我们的关系，就到此为止吧！", sizeof(sendBuffer) - 1);
+            int  retWrite = write(sockfd, sendBuffer, sizeof(sendBuffer) - 1);
+            if(retWrite == -1)
+            {
+                perror("write error");
+            }
+            /* 服务器回的消息 */
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
+            break;
+        }
+        case SEND_MESSAGE:
+        {
+            break;
+        }
+        default:
+            break;
+        }
     }
 
     /* 休息5S */
