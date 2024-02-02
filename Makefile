@@ -3,8 +3,8 @@
 OBJ = $(patsubst %.c, %.o, $(wildcard ./*.c))
 TARGET = server
 
-LDFLAGS = -L./src_so
-LIBS = -ljson-c -lsqlite3 -lSoMyTree
+LDFLAGS = -L./src_so -L./dataBase_so
+LIBS = -ljson-c -lsqlite3 -lSoMyTree -SoMydataBase
 
 # 使用$(TARGET)，必须要加$符号
 $(TARGET): $(OBJ)

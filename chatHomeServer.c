@@ -285,7 +285,7 @@ void *communicate_handler(void *arg)
         }
         else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
         {
-            
+           
         }
     }
     /* 释放堆空间 */

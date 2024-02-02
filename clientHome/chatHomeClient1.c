@@ -12,6 +12,7 @@
 #include <json-c/json_object.h>
 #include "balanceBinarySearchTree.h"
 #include <sqlite3.h>
+#include "dataBase.h"
 #define SERVER_PORT 8851
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -163,6 +164,10 @@ int addfriend(int sockfd)
         printf("请输入对方名称:\n");
         scanf("%s", name);
         USER *friendUser = calloc(1, sizeof(USER));
+        if (friendUser == NULL)
+        {
+            printf("friendUser calloc error\n");
+        }
         strncpy(friendUser->name, name, sizeof(friendUser->name) - 1);
         if (balanceBinarySearchTreeIsContainAppointVal(AVL, friendUser) != ON_SUCCESS)
         {
@@ -176,8 +181,7 @@ int addfriend(int sockfd)
     int options = ADD_FRIEND;
     struct json_object *applyObj = json_object_new_object();
     json_object_object_add(applyObj, "options", json_object_new_int(options));
-    json_object_object_add(applyObj, "name", json_object_get_string(name));
-    json_object_object_add(applyObj, "sockfd", json_object_get_string(sockfd));
+    json_object_object_add(applyObj, "name", json_object_new_string(name));
     const char *sendStr = json_object_to_json_string(applyObj);
     int len = strlen(sendStr);
     /*将json对象转化为字符串发给服务器*/
