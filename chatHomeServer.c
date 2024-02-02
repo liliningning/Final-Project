@@ -34,6 +34,8 @@ enum CODE_STATUS
     REPEATED_USER = -1,
     ON_SUCCESS,
 };
+
+/* 进行结构体的呈现 */
 typedef struct Fdset
 {
     int acceptfd;
@@ -62,6 +64,7 @@ int printFunc(void *arg)
 
     return ret;
 }
+#if 0
 /* 群聊 */
 int groupChat(int sockfd, int groupname, int name)
 {
@@ -92,7 +95,7 @@ int groupChat(int sockfd, int groupname, int name)
     /* 将数据发送给服务器 */
     write(sockfd, sendbuf, sizeof(sendbuf) - 1);
 }
-
+#endif
 /* 添加好友 */
 
 int addFrined(int name)
@@ -106,11 +109,11 @@ int addFrined(int name)
     int ret = dataBaseDuplicateCheck(parsonObj);
     if (ret == REPEATED_USER)
     {
-        /* 执行新增的插入好友表的函数 */
+        /* 将其更新在新的好友表里面 */
     }
 }
 /* 删除好友 */
-void deleteFriend(int name, int friendName)
+void deleteFriend(char *name, char *friendName)
 {
     /* 执行删除语句 */
     dataBaseFriendDelete(name, friendName);

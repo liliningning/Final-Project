@@ -4,7 +4,13 @@
 #include <json-c/json.h>
 #include <json-c/json_object.h>
 
-/* 数据库初始化 */
+
+
+
+/* 数据库的初始化 */
+int openSql(sqlite3 **mydb);
+
+/* 数据库建表  */
 int dataBaseInit();
 /* 查询  */
 int dataBaseDuplicateCheck(struct json_object *parseObj);
