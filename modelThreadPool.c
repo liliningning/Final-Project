@@ -11,7 +11,7 @@
 // 任务结构体
 typedef struct Task
 {
-    void (*function)(void *arg);
+    void *(*function)(void *arg);
     void *arg;
 } Task;
 
@@ -158,7 +158,7 @@ int threadPoolDestroy(ThreadPool *pool)
     return 0;
 }
 
-void threadPoolAdd(ThreadPool *pool, void (*func)(void *), void *arg)
+void threadPoolAdd(ThreadPool *pool, void *(*func)(void *), void *arg)
 {
     pthread_mutex_lock(&pool->mutexPool);
     while (pool->queueSize == pool->queueCapacity && !pool->shutdown)

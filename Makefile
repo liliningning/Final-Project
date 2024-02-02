@@ -8,10 +8,10 @@ LIBS = -ljson-c -lsqlite3 -lSoMyTree
 
 # 使用$(TARGET)，必须要加$符号
 $(TARGET): $(OBJ)
-	$(CC)  $^ $(LDFLAGS) $(LIBS) -o $@
+	$(CC) -g $^ $(LDFLAGS) $(LIBS) -o $@
 
 %.o: %.c
-	$(CC) -c $^ -o $@
+	$(CC) -g -c $^ -o $@
 
 .PHONY: clean
 

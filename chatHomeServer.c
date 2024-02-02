@@ -25,8 +25,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-atomic_bool running = ATOMIC_VAR_INIT(true);
-
 #define SERVER_PORT 8852
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -72,7 +70,6 @@ int compareFunc(void *arg1, void *arg2)
 {
     USER val1 = *(USER *)arg1;
     USER val2 = *(USER *)arg2;
-    printf("val1:%s = val2:%s\n", val1.name, val2.name);
     size_t len1 = strlen(val1.name);
     size_t len2 = strlen(val2.name);
     return strncmp(val1.name, val2.name, len1 < len2 ? len1 : len2);
@@ -86,8 +83,6 @@ void *accept_handler(void *arg)
     Fdset *fdset = (Fdset *)arg;
 
     fdset->acceptfd = accept(fdset->sockfd, NULL, NULL);
-    printf("%d\n", fdset->acceptfd);
-    printf("HHHHHHHHH\n");
     if (fdset->acceptfd == -1)
     {
         perror("accpet error");
@@ -97,10 +92,9 @@ void *accept_handler(void *arg)
     struct epoll_event event;
     pthread_mutex_lock(&g_mutex);
     event.data.fd = fdset->acceptfd;
-    event.events = EPOLLIN | EPOLLOUT;
+    event.events = EPOLLIN;
     ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
     pthread_mutex_unlock(&g_mutex);
-    printf("ret=%d\n", ret);
     if (ret == -1)
     {
         perror("epoll_ctl error");
@@ -128,16 +122,14 @@ void *communicate_handler(void *arg)
     char sendBuffer[BUFFER_SIZE];
     memset(sendBuffer, 0, sizeof(sendBuffer));
     int readBytes = 0;
+
+    /*命令变量*/
+    int demand = 0;
+    USER *currentUser = calloc(1, sizeof(USER));
+    readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     /*解析json对象*/
     struct json_object *parseObj = calloc(1, sizeof(parseObj));
     parseObj = json_tokener_parse(recvbuffer);
-    /*命令变量*/
-    int demand = 0;
-
-    USER *currentUser = calloc(1, sizeof(USER));
-    printf("hereok!!!!!!!!\n");
-    readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
-    printf("herenooooooooo!!!!!!!!\n");
     if (readBytes < 0)
     {
         perror("read eror");
@@ -153,7 +145,6 @@ void *communicate_handler(void *arg)
     }
     else if (readBytes == 0)
     {
-        printf("客户端下线了...\n");
         /* 从epoll的红黑树上删除通信结点 */
         pthread_mutex_lock(&g_mutex);
         ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
@@ -164,12 +155,13 @@ void *communicate_handler(void *arg)
         pthread_mutex_unlock(&g_mutex);
         /*将数据库的上线状态改为下线状态*/
         pthread_mutex_lock(&g_mutex);
-        ret = dataBaseUpdateOnlineStatus(parseObj);
+        ret = dataBaseFriendOffline(parseObj);
         pthread_mutex_unlock(&g_mutex);
         if (ret != ON_SUCCESS)
         {
             printf("dataBaseUpdateOnlineStatus error\n");
         }
+        printf("客户端下线了...\n");
         sleep(2);
         close(fdset->acceptfd);
     }
@@ -250,7 +242,7 @@ void *communicate_handler(void *arg)
 
                     /*登录成功的人要加入数据库,上锁*/
                     pthread_mutex_lock(&g_mutex);
-                    ret = dataBaseFriendInsert(nodeUser->name, NULL, fdset->acceptfd, 1, NULL);
+                    ret = dataBaseFriendOnline(nodeUser->name);
                     pthread_mutex_unlock(&g_mutex);
                     if (ret != ON_SUCCESS)
                     {
@@ -289,12 +281,16 @@ void *communicate_handler(void *arg)
         {
         }
     }
-
+    /* 释放堆空间 */
+    if (fdset)
+    {
+        free(fdset);
+        fdset = NULL;
+    }
     pthread_exit(NULL);
 }
 void signal_handler(int sig)
 {
-    atomic_store(&running, false);
     /*销毁线程成*/
     threadPoolDestroy(pool);
     /*关闭文件描述符*/
@@ -351,7 +347,7 @@ int main()
     /*初始化数据库*/
     dataBaseInit(&mydb);
     /*初始化线程池*/
-    // pool = threadPoolCreate(MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
+    pool = threadPoolCreate(MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
     /*初始化锁资源*/
     pthread_mutex_init(&g_mutex, NULL);
     /*层序遍历树，打印信息*/
@@ -424,7 +420,7 @@ int main()
     struct epoll_event event;
     memset(&event, 0, sizeof(event));
     event.data.fd = sockfd;
-    event.events = EPOLLIN | EPOLLET;
+    event.events = EPOLLIN;
 
     ret = epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &event);
     if (ret == -1)
@@ -453,80 +449,39 @@ int main()
             int fd = events[idx].data.fd;
             if (fd == sockfd)
             {
+#if 0
                 int acceptfd = accept(sockfd, NULL, NULL);
                 if (acceptfd == -1)
                 {
                     perror("accpet error");
                     exit(-1);
                 }
-                /* 将通信的accept句柄 设置成非阻塞 */
-                int flag = fcntl(acceptfd, F_GETFL);
-                flag |= O_NONBLOCK;
-                fcntl(acceptfd, F_SETFL, flag);
-
                 /* 将通信句柄放到epoll的红黑树上 */
                 struct epoll_event event;
                 event.data.fd = acceptfd;
-                event.events = EPOLLIN | EPOLLET;
+                event.events = EPOLLIN;
                 epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &event);
+#else
+                Fdset *set = calloc(1, sizeof(Fdset));
+                if (set == NULL)
+                {
+                    continue;
+                }
+                set->epollfd = epfd;
+                set->sockfd = fd;
+                threadPoolAdd(pool, accept_handler, (void *)set);
+#endif
             }
             else
             {
-                Fdset *set = (Fdset *)malloc(sizeof(Fdset) * 1);
-                /* todo... */
+                Fdset *set = calloc(1, sizeof(Fdset));
+                if (set == NULL)
+                {
+                    continue;
+                }
                 set->epollfd = epfd;
                 set->acceptfd = fd;
-                pthread_t tid;
-                pthread_create(&tid, NULL, communicate_handler, (void *)set);
-                /* todo... */
-
-#if 0
-                char buffer[BUFFER_SIZE] = {0};
-
-                
-                while (1)
-                {
-                    int readBytes = read(fd, (void *)&buffer, sizeof(buffer) - 1);
-                    if (readBytes < 0)
-                    {
-                        if (errno == EAGAIN)
-                        {
-                            /* 内核缓冲区数据接收完成 */
-                            printf("数据已经接收完成");
-                            break;
-                        }
-                        else
-                        {
-                            perror("read eror");
-                            /* 从epoll的红黑树上删除通信结点 */
-                            epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
-                            close(fd);
-                            break;
-                        }
-                    }
-                    else if (readBytes == 0)
-                    {
-                        printf("客户端下线了...\n");
-                        /* 从epoll的红黑树上删除通信结点 */
-                        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
-                        close(fd);
-                        break;
-                    }
-                    else
-                    {
-                        printf("recv:%s\n", buffer);
-
-                        for (int jdx = 0; jdx < readBytes; jdx++)
-                        {
-                            buffer[jdx] = toupper(buffer[jdx]);
-                        }
-
-                        /* 发回客户端 */
-                        write(fd, buffer, readBytes);
-                        usleep(500);
-                    }
-                }
-#endif
+                threadPoolAdd(pool, communicate_handler, (void *)set);
             }
         }
     }

@@ -30,7 +30,7 @@ int dataBaseInit(sqlite3 **db)
         printf("sqlite3_exec error1:%s\n", errormsg);
         exit(-1);
     }
-    sql = "create table if not exists friend(name text primary key not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text)";
+    sql = "create table if not exists friend(name text not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text)";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -107,8 +107,8 @@ int dataBaseUserInsert(struct json_object *parseObj)
     sqlite3_close(mydb);
     return ON_SUCCESS;
 }
-/*用户登录时向朋友表中插入数据*/
-int dataBaseFriendInsert(const char *name, const char *friendName, int acceptfd, int onlineStatus, const char *priviteMessage)
+/*用户登录时更新为在线状态*/
+int dataBaseFriendOnline(const char *friendName)
 {
     sqlite3 *mydb = NULL;
     /*打开数据库*/
@@ -122,7 +122,7 @@ int dataBaseFriendInsert(const char *name, const char *friendName, int acceptfd,
     char *errormsg = NULL;
 
     char sql[SQL_SIZE] = {0};
-    sprintf(sql, "insert into friend values('%s','%s',%d,%d,'%s')", name, friendName, acceptfd, onlineStatus, priviteMessage);
+    sprintf(sql, "UPDATE friend SET whetherOnline = 1 WHERE friendName = '%s'", friendName);
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -134,7 +134,7 @@ int dataBaseFriendInsert(const char *name, const char *friendName, int acceptfd,
 }
 
 /*将客户端上线状态变为下线*/
-int dataBaseUpdateOnlineStatus(struct json_object *parseObj)
+int dataBaseFriendOffline(struct json_object *parseObj)
 {
     sqlite3 *mydb = NULL;
     struct json_object *acountVal = json_object_object_get(parseObj, "account");

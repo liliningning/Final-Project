@@ -9,7 +9,7 @@ ThreadPool *threadPoolCreate(int min, int max, int queueSize);
 int threadPoolDestroy(ThreadPool *pool);
 
 // 给线程池添加任务
-void threadPoolAdd(ThreadPool *pool, void (*func)(void *), void *arg);
+void threadPoolAdd(ThreadPool *pool, void *(*func)(void *), void *arg);
 
 // 获取线程池中工作的线程的个数
 int threadPoolBusyNum(ThreadPool *pool);
