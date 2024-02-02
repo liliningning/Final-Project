@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define SERVER_PORT 8852
+#define SERVER_PORT 8851
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -34,6 +34,8 @@
 #define MAX_QUEUE_CA 50
 #define EVENT_SIZE 1024
 #define USER_SIZE 128
+#define REGISTER "a"
+#define LOGIN "b"
 /*全局变量，方便捕捉信号后释放资源*/
 
 ThreadPool *pool = NULL;
@@ -41,6 +43,13 @@ int sockfd;
 BalanceBinarySearchTree *AVL = NULL;
 sqlite3 *mydb = NULL;
 pthread_mutex_t g_mutex;
+typedef enum AFTER_LOGIN
+{
+    ADD_FRIEND = 1,
+    FRIEND_APPLICATION = 2,
+    DELETE_FRIREND = 3,
+    SEND_MESSAGE = 4,
+} AFTER_LOGIN;
 typedef struct USER
 {
     char name[USER_SIZE];
@@ -51,6 +60,7 @@ enum CODE_STATUS
     REPEATED_USER = -1,
     ON_SUCCESS,
 };
+
 typedef struct Fdset
 {
     int acceptfd;
@@ -58,11 +68,6 @@ typedef struct Fdset
     int sockfd;
 } Fdset;
 
-typedef enum USER_OPTIONS
-{
-    REGISTER = 1,
-    LOGIN = 2,
-} USER_OPTIONS;
 /*线程处理函数*/
 
 /* 二叉搜索树的比较函数 */
@@ -92,7 +97,7 @@ void *accept_handler(void *arg)
     struct epoll_event event;
     pthread_mutex_lock(&g_mutex);
     event.data.fd = fdset->acceptfd;
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLOUT;
     ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
     pthread_mutex_unlock(&g_mutex);
     if (ret == -1)
@@ -124,8 +129,10 @@ void *communicate_handler(void *arg)
     int readBytes = 0;
 
     /*命令变量*/
-    int demand = 0;
+    char *demand = calloc(BUFFER_SIZE, sizeof(char));
     USER *currentUser = calloc(1, sizeof(USER));
+
+    /*读取数据*/
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
     /*解析json对象*/
     struct json_object *parseObj = calloc(1, sizeof(parseObj));
@@ -162,14 +169,13 @@ void *communicate_handler(void *arg)
             printf("dataBaseUpdateOnlineStatus error\n");
         }
         printf("客户端下线了...\n");
-        sleep(2);
         close(fdset->acceptfd);
     }
     else
     {
         printf("go body\n");
         /*接受消息*/
-        if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
+        if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), REGISTER))
         {
             /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
             strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
@@ -214,7 +220,7 @@ void *communicate_handler(void *arg)
             }
         }
         /*功能在if中加*/
-        else if (json_object_get_int(json_object_object_get(parseObj, "choices")) == LOGIN)
+        else if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), LOGIN))
         {
             printf("------check------\n");
             /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
@@ -277,8 +283,9 @@ void *communicate_handler(void *arg)
                 sleep(2);
             }
         }
-        else if (1)
+        else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
         {
+            
         }
     }
     /* 释放堆空间 */
@@ -341,6 +348,7 @@ int printStructData(void *arg)
 int main()
 {
     /*初始化树，数据库，线程池，锁*/
+    /*初始化树*/
     balanceBinarySearchTreeInit(&AVL, compareFunc, printStructData);
     /*将数据库中的信息存入内存*/
     dataBaseToMemory(mydb, AVL);
@@ -459,7 +467,7 @@ int main()
                 /* 将通信句柄放到epoll的红黑树上 */
                 struct epoll_event event;
                 event.data.fd = acceptfd;
-                event.events = EPOLLIN;
+                event.events = EPOLLIN | EPOLLOUT;
                 epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &event);
 #else
                 Fdset *set = calloc(1, sizeof(Fdset));

@@ -141,7 +141,7 @@ int main()
     //     }
     // }
     /*删除*/
-    sql = " drop table friend";
+    sql = " DELETE FROM friend WHERE name = 'easy'";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {

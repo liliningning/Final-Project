@@ -10,6 +10,17 @@ enum CODE_STATUS
     REPEATED_USER = -1,
     ON_SUCCESS,
 };
+/* 打开数据库的函数 */
+static int openSql(sqlite3 **mydb)
+{
+    int ret = sqlite3_open("chatBase.db", mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    return ret;
+}
 /*初始化数据库*/
 int dataBaseInit(sqlite3 **db)
 {
@@ -157,4 +168,22 @@ int dataBaseFriendOffline(struct json_object *parseObj)
     }
     sqlite3_close(mydb);
     return ON_SUCCESS;
+}
+
+/* 好友表的插入 insert   into values */
+int dataBaseFriendInsert(const char *name, const char *friendName)
+{
+    /*打开数据库*/
+    sqlite3 *mydb = NULL;
+    openSql(&mydb);
+    /*插入用户信息*/
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    int ret = sprintf(sql, "insert into friend values('%s', '%s', NULL, NULL,) ", name, friendName);
+    if (ret != SQLITE_OK)
+    {
+        printf("inster into friend %s", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
 }

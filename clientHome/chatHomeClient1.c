@@ -10,16 +10,15 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 8852
+#include "balanceBinarySearchTree.h"
+#include <sqlite3.h>
+#define SERVER_PORT 8851
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
 #define SUCCESS_LOGIN "登陆成功"
-typedef enum USER_OPTIONS
-{
-    REGISTER = 1,
-    LOGIN = 2,
-} USER_OPTIONS;
-
+#define REGISTER "a"
+#define LOGIN "b"
+#define USER_SIZE 128
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
@@ -27,12 +26,41 @@ typedef enum AFTER_LOGIN
     DELETE_FRIREND = 3,
     SEND_MESSAGE = 4,
 } AFTER_LOGIN;
+/*全局变量*/
+BalanceBinarySearchTree *AVL = NULL;
+sqlite3 *mydb = NULL;
+typedef struct USER
+{
+    char name[USER_SIZE];
+    char password[USER_SIZE];
+} USER;
+enum CODE_STATUS
+{
+    REPEATED_USER = -1,
+    ON_SUCCESS,
+};
+
+int compareFunc(void *arg1, void *arg2)
+{
+    USER val1 = *(USER *)arg1;
+    USER val2 = *(USER *)arg2;
+    size_t len1 = strlen(val1.name);
+    size_t len2 = strlen(val2.name);
+    return strncmp(val1.name, val2.name, len1 < len2 ? len1 : len2);
+}
+int printStructData(void *arg)
+{
+    int ret = 0;
+    USER val = *(USER *)arg;
+    printf("val.name:%s\tval.password:%s\t", val.name, val.password);
+    return ret;
+}
 static int clientLogIn(int sockfd)
 {
     int ret = 0;
-    int demand = LOGIN;
+    char *demand = LOGIN;
 
-    struct json_object *registerObj = json_object_new_object();
+    struct json_object *clientObj = json_object_new_object();
 
     /*账号*/
     char accountNumber[BUFFER_SIZE];
@@ -48,10 +76,10 @@ static int clientLogIn(int sockfd)
     while (getchar() != '\n')
         ;
     printf("check whether valid------------ing-----------\n");
-    json_object_object_add(registerObj, "choices", json_object_new_int(demand));
-    json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
-    json_object_object_add(registerObj, "password", json_object_new_string(passwordNumber));
-    const char *sendStr = json_object_to_json_string(registerObj);
+    json_object_object_add(clientObj, "choices", json_object_new_string(demand));
+    json_object_object_add(clientObj, "account", json_object_new_string(accountNumber));
+    json_object_object_add(clientObj, "password", json_object_new_string(passwordNumber));
+    const char *sendStr = json_object_to_json_string(clientObj);
     int len = strlen(sendStr);
     char sendBuf[BUFFER_SIZE] = {0};
     strncpy(sendBuf, sendStr, 127);
@@ -67,7 +95,7 @@ static int clientLogIn(int sockfd)
 static int clientRegister(int sockfd)
 {
     int ret = 0;
-    int demand = REGISTER;
+    char *demand = REGISTER;
 
     struct json_object *registerObj = json_object_new_object();
 
@@ -112,7 +140,7 @@ static int clientRegister(int sockfd)
         }
     }
     printf("check valid------------ing-----------\n");
-    json_object_object_add(registerObj, "choices", json_object_new_int(demand));
+    json_object_object_add(registerObj, "choices", json_object_new_string(demand));
     json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
     json_object_object_add(registerObj, "password", json_object_new_string(accord));
     const char *sendStr = json_object_to_json_string(registerObj);
@@ -129,9 +157,79 @@ static int clientRegister(int sockfd)
 }
 int addfriend(int sockfd)
 {
+    char *name = calloc(BUFFER_SIZE, sizeof(char));
+    while (1)
+    {
+        printf("请输入对方名称:\n");
+        scanf("%s", name);
+        USER *friendUser = calloc(1, sizeof(USER));
+        strncpy(friendUser->name, name, sizeof(friendUser->name) - 1);
+        if (balanceBinarySearchTreeIsContainAppointVal(AVL, friendUser) != ON_SUCCESS)
+        {
+            printf("该用户不存在,请重新输入\n");
+        }
+        else
+        {
+            break;
+        }
+    }
+    int options = ADD_FRIEND;
+    struct json_object *applyObj = json_object_new_object();
+    json_object_object_add(applyObj, "options", json_object_new_int(options));
+    json_object_object_add(applyObj, "name", json_object_get_string(name));
+    json_object_object_add(applyObj, "sockfd", json_object_get_string(sockfd));
+    const char *sendStr = json_object_to_json_string(applyObj);
+    int len = strlen(sendStr);
+    /*将json对象转化为字符串发给服务器*/
+    int retWrite = write(sockfd, sendStr, len + 1);
+    if (retWrite == -1)
+    {
+        perror("write error");
+    }
+    printf("已发送好友申请\n");
+    sleep(2);
+    return ON_SUCCESS;
+}
+int friendApplication(int sockfd)
+{
+    /*查看好友申请*/
+    /*是否同意申请*/
+}
+int dataBaseToMemory(sqlite3 *db, BalanceBinarySearchTree *avl)
+{
+
+    sqlite3_open("../chatBase.db", &db);
+    char *errormsg = NULL;
+    const char *sql = "select * from user";
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    int ret = sqlite3_get_table(db, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error2:%s\n", errormsg);
+        exit(-1);
+    }
+    /*略过表头，从第二行开始插入*/
+    for (int idx = column; idx < (row + 1) * column; idx = idx + 2)
+    {
+        USER *dataBaseUser = calloc(1, sizeof(USER));
+        strncpy(dataBaseUser->name, result[idx], sizeof(dataBaseUser->name) - 1);
+        strncpy(dataBaseUser->password, result[idx + 1], sizeof(dataBaseUser->password) - 1);
+        balanceBinarySearchTreeInsert(avl, (void *)dataBaseUser);
+    }
+
+    sqlite3_close(db);
+    return ON_SUCCESS;
 }
 int main()
 {
+    /*初始化树*/
+    balanceBinarySearchTreeInit(&AVL, compareFunc, printStructData);
+    /*将数据库中的信息存入内存*/
+    dataBaseToMemory(mydb, AVL);
+    /*初始化数据库*/
+    dataBaseInit(&mydb);
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1)
     {
@@ -163,21 +261,20 @@ int main()
     char recvBuffer[BUFFER_SIZE];
     memset(recvBuffer, 0, sizeof(recvBuffer));
 
-    int choices = 0;
+    char *choices = calloc(BUFFER_SIZE, sizeof(char));
+    int options = 0;
     while (strcmp(recvBuffer, SUCCESS_LOGIN))
     {
-#if 1
         printf("正在加载页面...\n");
-        sleep(2);
+        sleep(1);
+        printf("a.注册\nb.登录\n");
         printf("请输入选项:\n");
-        printf("1.注册\n2.登录\n");
-        scanf("%d", &choices);
+        scanf("%s", choices);
         /*去除行缓存*/
         while (getchar() != '\n')
             ;
-        switch (choices)
-        {
-        case REGISTER:
+
+        if (!strcmp(choices, REGISTER))
         {
             clientRegister(sockfd);
             /*睡一会，等待函数执行*/
@@ -188,9 +285,8 @@ int main()
                 perror("read error");
             }
             printf("提示:%s\n", recvBuffer);
-            break;
         }
-        case LOGIN:
+        else if (!strcmp(choices, LOGIN))
         {
             clientLogIn(sockfd);
             /*睡一会，等待函数执行*/
@@ -201,32 +297,28 @@ int main()
                 perror("read error");
             }
             printf("提示:%s\n", recvBuffer);
-            break;
-        }
-        default:
-            break;
         }
         sleep(1);
-#endif
     }
     /*登录成功*/
     while (1)
     {
         printf("请输入选项:\n");
         printf("1.添加好友\n2.好友请求\n3.删除好友\n4.给好友发送消息\n");
-        scanf("%d", &choices);
+        scanf("%d", &options);
         /*去除行缓存*/
         while (getchar() != '\n')
             ;
-        switch (choices)
+        switch (options)
         {
         case ADD_FRIEND:
         {
-
+            addfriend(sockfd);
             break;
         }
         case FRIEND_APPLICATION:
         {
+
             break;
         }
         case DELETE_FRIREND:
