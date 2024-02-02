@@ -12,7 +12,7 @@ enum CODE_STATUS
 };
 
 /* 打开数据库的函数 */
-int openSql(sqlite3 **mydb)
+   static int  openSql(sqlite3 **mydb)
 {
     int ret = sqlite3_open("chatBase.db", mydb);
     if (ret != SQLITE_OK)
@@ -31,7 +31,7 @@ int dataBaseInit()
     /*创建用户信息表*/
     char *errormsg = NULL;
     const char *sql = " create table if not exists user (name text primary key  not null, password text not null)";
-   int  ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    int ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec error1:%s\n", errormsg);
@@ -81,13 +81,13 @@ int dataBaseUserInsert(struct json_object *parseObj)
     struct json_object *passwordVal = json_object_object_get(parseObj, "password");
     sqlite3 *mydb = NULL;
     /*打开数据库*/
-      openSql(&mydb);
+    openSql(&mydb);
     /*插入用户信息*/
     char *errormsg = NULL;
 
     char sql[SQL_SIZE] = {0};
     sprintf(sql, "insert into user values('%s','%s')", json_object_get_string(acountVal), json_object_get_string(passwordVal));
-   int  ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    int ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec error1:%s\n", errormsg);
@@ -101,12 +101,12 @@ int dataBaseUserInsert(struct json_object *parseObj)
 int dataBaseFriendDelete(const char *name, const char *friendName)
 {
     sqlite3 *mydb = NULL;
-     openSql(&mydb);
+    openSql(&mydb);
     char *errormsg = NULL;
     char sql[SQL_SIZE] = {0};
     sprintf(sql, "delete from friend where name = '%s'  and friendName= '%s'  ", name, friendName);
 
-   int  ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    int ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret == SQLITE_OK)
     {
         printf("sqlite3 drop error %s", errormsg);
@@ -124,6 +124,13 @@ int dataBaseFriendInsert(const char *name, const char *friendName)
     /*插入用户信息*/
     char *errormsg = NULL;
     char sql[SQL_SIZE] = {0};
+    int ret = sprintf(sql, "insert into friend values('%s', '%s', NULL, NULL,) ", name, friendName);
+    if (ret != SQLITE_OK)
+    {
+        printf("inster into friend %s", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
 }
 
 #if 0

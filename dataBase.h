@@ -7,8 +7,6 @@
 
 
 
-/* 数据库的初始化 */
-int openSql(sqlite3 **mydb);
 
 /* 数据库建表  */
 int dataBaseInit();
@@ -22,6 +20,9 @@ int dataBaseFriendDelete(const char * name , const  char * friendName);
 
 /* 好友表的查询 */
 int dataBaseFriendSelect(const char *friendName);
+
+/* 好友表的插入 insert   into values */
+int dataBaseFriendInsert(const char *name, const char *friendName);
 
 
 
