@@ -19,7 +19,15 @@
 #include <string.h>
 #include <stddef.h>
 #include "balanceBinarySearchTree.h"
-#define SERVER_PORT 8878
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
+atomic_bool running = ATOMIC_VAR_INIT(true);
+
+#define SERVER_PORT 8852
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -51,6 +59,7 @@ typedef struct Fdset
     int epollfd;
     int sockfd;
 } Fdset;
+
 typedef enum USER_OPTIONS
 {
     REGISTER = 1,
@@ -71,9 +80,14 @@ int compareFunc(void *arg1, void *arg2)
 
 void *accept_handler(void *arg)
 {
-    Fdset *fdset = (Fdset *)arg;
     pthread_detach(pthread_self());
+
+    int ret = 0;
+    Fdset *fdset = (Fdset *)arg;
+
     fdset->acceptfd = accept(fdset->sockfd, NULL, NULL);
+    printf("%d\n", fdset->acceptfd);
+    printf("HHHHHHHHH\n");
     if (fdset->acceptfd == -1)
     {
         perror("accpet error");
@@ -83,14 +97,28 @@ void *accept_handler(void *arg)
     struct epoll_event event;
     pthread_mutex_lock(&g_mutex);
     event.data.fd = fdset->acceptfd;
-    event.events = EPOLLIN;
-    epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
+    event.events = EPOLLIN | EPOLLOUT;
+    ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_ADD, fdset->acceptfd, &event);
     pthread_mutex_unlock(&g_mutex);
-}
+    printf("ret=%d\n", ret);
+    if (ret == -1)
+    {
+        perror("epoll_ctl error");
+    }
 
+    /* 释放堆空间 */
+    if (fdset)
+    {
+        free(fdset);
+        fdset = NULL;
+    }
+}
 void *communicate_handler(void *arg)
-{
+{ /*判断函数返回值*/
+    int ret = 0;
     pthread_detach(pthread_self());
+
+    printf("=======================communication=========================\n");
     Fdset *fdset = (Fdset *)arg;
     /*接收缓冲区*/
     char recvbuffer[BUFFER_SIZE];
@@ -105,16 +133,21 @@ void *communicate_handler(void *arg)
     parseObj = json_tokener_parse(recvbuffer);
     /*命令变量*/
     int demand = 0;
-    /*判断函数返回值*/
-    int ret = 0;
+
     USER *currentUser = calloc(1, sizeof(USER));
+    printf("hereok!!!!!!!!\n");
     readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
+    printf("herenooooooooo!!!!!!!!\n");
     if (readBytes < 0)
     {
         perror("read eror");
         /* 从epoll的红黑树上删除通信结点 */
         pthread_mutex_lock(&g_mutex);
-        epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        if (ret == -1)
+        {
+            perror("epoll_ctl2 error");
+        }
         pthread_mutex_unlock(&g_mutex);
         close(fdset->acceptfd);
     }
@@ -123,7 +156,11 @@ void *communicate_handler(void *arg)
         printf("客户端下线了...\n");
         /* 从epoll的红黑树上删除通信结点 */
         pthread_mutex_lock(&g_mutex);
-        epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+        if (ret == -1)
+        {
+            perror("epoll_ctl3 error");
+        }
         pthread_mutex_unlock(&g_mutex);
         /*将数据库的上线状态改为下线状态*/
         pthread_mutex_lock(&g_mutex);
@@ -138,11 +175,10 @@ void *communicate_handler(void *arg)
     }
     else
     {
-
+        printf("go body\n");
         /*接受消息*/
         if (json_object_get_int(json_object_object_get(parseObj, "choices")) == REGISTER)
         {
-
             /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
             strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
             strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
@@ -188,6 +224,7 @@ void *communicate_handler(void *arg)
         /*功能在if中加*/
         else if (json_object_get_int(json_object_object_get(parseObj, "choices")) == LOGIN)
         {
+            printf("------check------\n");
             /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
             strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
             strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
@@ -257,8 +294,9 @@ void *communicate_handler(void *arg)
 }
 void signal_handler(int sig)
 {
+    atomic_store(&running, false);
     /*销毁线程成*/
-    poolDestroy(pool);
+    threadPoolDestroy(pool);
     /*关闭文件描述符*/
     close(sockfd);
     /*销毁AVL*/
@@ -313,20 +351,28 @@ int main()
     /*初始化数据库*/
     dataBaseInit(&mydb);
     /*初始化线程池*/
-    poolInit(&pool, MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
+    // pool = threadPoolCreate(MINI_CAPACITY, MAX_CAPACITY, MAX_QUEUE_CA);
     /*初始化锁资源*/
     pthread_mutex_init(&g_mutex, NULL);
     /*层序遍历树，打印信息*/
     balanceBinarySearchTreeLevelOrderTravel(AVL);
-    sleep(2);
     /*捕捉退出信号*/
     signal(SIGINT, signal_handler);
 
     /* 创建socket套接字 */
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1)
     {
         perror("socket error");
+        exit(-1);
+    }
+
+    /* 设置端口复用 */
+    int enableOpt = 1;
+    int ret = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&enableOpt, sizeof(enableOpt));
+    if (ret == -1)
+    {
+        perror("setsockopt error");
         exit(-1);
     }
 
@@ -350,15 +396,8 @@ int main()
     /* INADDR_ANY = 0x00000000 */
     localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    /*设置端口复用*/
-    int enableopt = 1;
-    int ret = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&enableopt, sizeof(enableopt));
-    if (ret == -1)
-    {
-        perror("setsockopt error");
-        exit(-1);
-    }
-    ret = bind(sockfd, (struct sockaddr *)&localAddress, sizeof(localAddress));
+    int localAddressLen = sizeof(localAddress);
+    ret = bind(sockfd, (struct sockaddr *)&localAddress, localAddressLen);
     if (ret == -1)
     {
         perror("bind error");
@@ -372,6 +411,7 @@ int main()
         perror("listen error");
         exit(-1);
     }
+
     /* 创建epoll 红黑树 */
     int epfd = epoll_create(1);
     if (epfd == -1)
@@ -384,7 +424,7 @@ int main()
     struct epoll_event event;
     memset(&event, 0, sizeof(event));
     event.data.fd = sockfd;
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLET;
 
     ret = epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &event);
     if (ret == -1)
@@ -397,16 +437,8 @@ int main()
     /* 清除脏数据 */
     memset(events, 0, sizeof(events));
     int maxEventSize = sizeof(events) / sizeof(events[0]);
-
-    /* 客户的信息 */
-    struct sockaddr_in clientAddress;
-    memset(&clientAddress, 0, sizeof(clientAddress));
-    socklen_t clientAddressLen = 0;
-    int acceptfd = 0;
-    /*循环去接收客服请求*/
     while (1)
     {
-
         int num = epoll_wait(epfd, events, maxEventSize, -1);
         if (num == -1)
         {
@@ -418,22 +450,83 @@ int main()
 
         for (int idx = 0; idx < num; idx++)
         {
-
             int fd = events[idx].data.fd;
             if (fd == sockfd)
             {
-                Fdset *fdset = calloc(1, sizeof(Fdset));
-                fdset->sockfd = fd;
-                fdset->epollfd = epfd;
-                poolAdd(pool, accept_handler, (void *)fdset);
+                int acceptfd = accept(sockfd, NULL, NULL);
+                if (acceptfd == -1)
+                {
+                    perror("accpet error");
+                    exit(-1);
+                }
+                /* 将通信的accept句柄 设置成非阻塞 */
+                int flag = fcntl(acceptfd, F_GETFL);
+                flag |= O_NONBLOCK;
+                fcntl(acceptfd, F_SETFL, flag);
+
+                /* 将通信句柄放到epoll的红黑树上 */
+                struct epoll_event event;
+                event.data.fd = acceptfd;
+                event.events = EPOLLIN | EPOLLET;
+                epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &event);
             }
             else
             {
-                Fdset *fdset = calloc(1, sizeof(Fdset));
-                fdset->acceptfd = fd;
-                fdset->sockfd = sockfd;
-                fdset->epollfd = epfd;
-                poolAdd(pool, communicate_handler, (void *)fdset);
+                Fdset *set = (Fdset *)malloc(sizeof(Fdset) * 1);
+                /* todo... */
+                set->epollfd = epfd;
+                set->acceptfd = fd;
+                pthread_t tid;
+                pthread_create(&tid, NULL, communicate_handler, (void *)set);
+                /* todo... */
+
+#if 0
+                char buffer[BUFFER_SIZE] = {0};
+
+                
+                while (1)
+                {
+                    int readBytes = read(fd, (void *)&buffer, sizeof(buffer) - 1);
+                    if (readBytes < 0)
+                    {
+                        if (errno == EAGAIN)
+                        {
+                            /* 内核缓冲区数据接收完成 */
+                            printf("数据已经接收完成");
+                            break;
+                        }
+                        else
+                        {
+                            perror("read eror");
+                            /* 从epoll的红黑树上删除通信结点 */
+                            epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                            close(fd);
+                            break;
+                        }
+                    }
+                    else if (readBytes == 0)
+                    {
+                        printf("客户端下线了...\n");
+                        /* 从epoll的红黑树上删除通信结点 */
+                        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                        close(fd);
+                        break;
+                    }
+                    else
+                    {
+                        printf("recv:%s\n", buffer);
+
+                        for (int jdx = 0; jdx < readBytes; jdx++)
+                        {
+                            buffer[jdx] = toupper(buffer[jdx]);
+                        }
+
+                        /* 发回客户端 */
+                        write(fd, buffer, readBytes);
+                        usleep(500);
+                    }
+                }
+#endif
             }
         }
     }

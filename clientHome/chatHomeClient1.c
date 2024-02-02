@@ -10,7 +10,7 @@
 #include <error.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-#define SERVER_PORT 8878
+#define SERVER_PORT 8852
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
 #define SUCCESS_LOGIN "登陆成功"
@@ -53,9 +53,10 @@ static int clientLogIn(int sockfd)
     json_object_object_add(registerObj, "password", json_object_new_string(passwordNumber));
     const char *sendStr = json_object_to_json_string(registerObj);
     int len = strlen(sendStr);
-
+    char sendBuf[BUFFER_SIZE] = {0};
+    strncpy(sendBuf, sendStr, 127);
     /*将json对象转化为字符串发给服务器*/
-    int retWrite = write(sockfd, sendStr, len + 1);
+    int retWrite = write(sockfd, sendBuf, 128);
     if (retWrite == -1)
     {
         perror("write error");
@@ -125,6 +126,9 @@ static int clientRegister(int sockfd)
     }
 
     return ret;
+}
+int addfriend(int sockfd)
+{
 }
 int main()
 {
@@ -218,6 +222,7 @@ int main()
         {
         case ADD_FRIEND:
         {
+
             break;
         }
         case FRIEND_APPLICATION:
