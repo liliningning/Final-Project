@@ -7,10 +7,12 @@
 int dataBaseInit(sqlite3 **db);
 /*检查用户名是否重复*/
 int dataBaseDuplicateCheck(struct json_object *parseObj);
-/*插入用户信息*/
+/*user插入用户信息*/
 int dataBaseUserInsert(struct json_object *parseObj);
 /*登录时，更新在线状态*/
-int dataBaseFriendOnline(const char *friendName);
+int dataBaseFriendOnline(const char *name);
 /*将上线状态变为下线*/
 int dataBaseFriendOffline(struct json_object *parseObj);
+/*给name发送好友申请*/
+int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName);
 #endif

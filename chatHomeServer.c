@@ -131,136 +131,89 @@ void *communicate_handler(void *arg)
     /*命令变量*/
     char *demand = calloc(BUFFER_SIZE, sizeof(char));
     USER *currentUser = calloc(1, sizeof(USER));
-
-    /*读取数据*/
-    readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
-    /*解析json对象*/
-    struct json_object *parseObj = calloc(1, sizeof(parseObj));
-    parseObj = json_tokener_parse(recvbuffer);
-    if (readBytes < 0)
+    USER *nodeUser = NULL;
+    while (1)
     {
-        perror("read eror");
-        /* 从epoll的红黑树上删除通信结点 */
-        pthread_mutex_lock(&g_mutex);
-        ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
-        if (ret == -1)
+        /*读取数据*/
+        readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
+        printf("%s\n", recvbuffer);
+        /*解析json对象*/
+        struct json_object *parseObj = calloc(1, sizeof(parseObj));
+        parseObj = json_tokener_parse(recvbuffer);
+        if (readBytes < 0)
         {
-            perror("epoll_ctl2 error");
-        }
-        pthread_mutex_unlock(&g_mutex);
-        close(fdset->acceptfd);
-    }
-    else if (readBytes == 0)
-    {
-        /* 从epoll的红黑树上删除通信结点 */
-        pthread_mutex_lock(&g_mutex);
-        ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
-        if (ret == -1)
-        {
-            perror("epoll_ctl3 error");
-        }
-        pthread_mutex_unlock(&g_mutex);
-        /*将数据库的上线状态改为下线状态*/
-        pthread_mutex_lock(&g_mutex);
-        ret = dataBaseFriendOffline(parseObj);
-        pthread_mutex_unlock(&g_mutex);
-        if (ret != ON_SUCCESS)
-        {
-            printf("dataBaseUpdateOnlineStatus error\n");
-        }
-        printf("客户端下线了...\n");
-        close(fdset->acceptfd);
-    }
-    else
-    {
-        printf("go body\n");
-        /*接受消息*/
-        if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), REGISTER))
-        {
-            /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
-            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
-            strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
-            /*检查用户名有无重复*/
-            ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
-            if (ret == ON_SUCCESS)
+            perror("read eror");
+            /* 从epoll的红黑树上删除通信结点 */
+            pthread_mutex_lock(&g_mutex);
+            ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+            if (ret == -1)
             {
-                /*有重复*/
-                strncpy(sendBuffer, "美名尚存,另寻他名", sizeof(sendBuffer) - 1);
-                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
-                if (retwrite == -1)
-                {
-                    perror("write error");
-                }
-                json_object_put(parseObj); // 释放 parseObj
-                sleep(2);
+                perror("epoll_ctl2 error");
+                exit(-1);
             }
-            else
-            {
-                /*无重复*/
-                /*插入数据树,上锁*/
-                pthread_mutex_lock(&g_mutex);
-                balanceBinarySearchTreeInsert(AVL, (void *)currentUser);
-                pthread_mutex_unlock(&g_mutex);
-                /*插入数据库,上锁*/
-                pthread_mutex_lock(&g_mutex);
-                ret = dataBaseUserInsert(parseObj);
-                pthread_mutex_unlock(&g_mutex);
-                if (ret != ON_SUCCESS)
-                {
-                    printf("dataBaseUserInsert error\n");
-                }
-                strncpy(sendBuffer, "注册成功了，开始冲浪吧", sizeof(sendBuffer) - 1);
-                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
-                if (retwrite == -1)
-                {
-                    perror("write error");
-                }
-                json_object_put(parseObj); // 释放 parseObj
-                sleep(2);
-            }
+            pthread_mutex_unlock(&g_mutex);
+            close(fdset->acceptfd);
         }
-        /*功能在if中加*/
-        else if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), LOGIN))
+        else if (readBytes == 0)
         {
-            printf("------check------\n");
-            /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
-            strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
-            strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
-            // /*查找该用户的密码是否与对应密码匹配*/
-            // ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
-            AVLTreeNode *matchNode = baseAppointValGetAVLTreeNode(AVL, (void *)currentUser);
-            if (matchNode != NULL)
+            /* 从epoll的红黑树上删除通信结点 */
+            pthread_mutex_lock(&g_mutex);
+            ret = epoll_ctl(fdset->epollfd, EPOLL_CTL_DEL, fdset->acceptfd, NULL);
+            if (ret == -1)
             {
-                /*若匹配结点不为空说明账号正确，此时确认密码是否正确*/
-                /*将matchNode中的data强转为USR型，否则strncmp会调用错误*/
-                USER *nodeUser = (USER *)matchNode->data;
-                size_t len1 = strlen(nodeUser->password);
-                size_t len2 = strlen(currentUser->password);
-                if (strncmp(nodeUser->password, currentUser->password, len1 < len2 ? len1 : len2) == 0)
+                perror("epoll_ctl3 error");
+            }
+            pthread_mutex_unlock(&g_mutex);
+            /*将数据库的上线状态改为下线状态*/
+            pthread_mutex_lock(&g_mutex);
+            ret = dataBaseFriendOffline(parseObj);
+            pthread_mutex_unlock(&g_mutex);
+            if (ret != ON_SUCCESS)
+            {
+                printf("dataBaseUpdateOnlineStatus error\n");
+            }
+            printf("客户端下线了...\n");
+            close(fdset->acceptfd);
+        }
+        else
+        {
+            printf("go body\n");
+            /*接受消息*/
+            if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), REGISTER))
+            {
+                /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
+                strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
+                strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
+                /*检查用户名有无重复*/
+                ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
+                if (ret == ON_SUCCESS)
                 {
-                    /*如果匹配*/
-                    strncpy(sendBuffer, "登陆成功", sizeof(sendBuffer) - 1);
+                    /*有重复*/
+                    strncpy(sendBuffer, "美名尚存,另寻他名", sizeof(sendBuffer) - 1);
                     int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                     if (retwrite == -1)
                     {
                         perror("write error");
-                    }
-
-                    /*登录成功的人要加入数据库,上锁*/
-                    pthread_mutex_lock(&g_mutex);
-                    ret = dataBaseFriendOnline(nodeUser->name);
-                    pthread_mutex_unlock(&g_mutex);
-                    if (ret != ON_SUCCESS)
-                    {
-                        printf("dataBaseFriendInsert error\n");
                     }
                     json_object_put(parseObj); // 释放 parseObj
                     sleep(2);
                 }
                 else
                 {
-                    /*密码不匹配，重新登录*/
-                    strncpy(sendBuffer, "密码不正确,请重新登陆", sizeof(sendBuffer) - 1);
+                    /*无重复*/
+                    /*插入数据树,上锁*/
+                    pthread_mutex_lock(&g_mutex);
+                    balanceBinarySearchTreeInsert(AVL, (void *)currentUser);
+                    pthread_mutex_unlock(&g_mutex);
+                    /*插入数据库,上锁*/
+                    pthread_mutex_lock(&g_mutex);
+                    ret = dataBaseUserInsert(parseObj);
+                    pthread_mutex_unlock(&g_mutex);
+                    if (ret != ON_SUCCESS)
+                    {
+                        printf("dataBaseUserInsert error\n");
+                    }
+                    strncpy(sendBuffer, "注册成功了，开始冲浪吧", sizeof(sendBuffer) - 1);
                     int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
                     if (retwrite == -1)
                     {
@@ -270,24 +223,84 @@ void *communicate_handler(void *arg)
                     sleep(2);
                 }
             }
-            else
+            /*功能在if中加*/
+            else if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), LOGIN))
             {
-                /*如果匹配结点为空则说明输入的账户不存在*/
-                strncpy(sendBuffer, "用户不存在,请重新输入或者注册", sizeof(sendBuffer) - 1);
-                int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
-                if (retwrite == -1)
+                printf("------check------\n");
+                /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
+                strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
+                strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
+                // /*查找该用户的密码是否与对应密码匹配*/
+                // ret = balanceBinarySearchTreeIsContainAppointVal(AVL, (void *)currentUser);
+                AVLTreeNode *matchNode = baseAppointValGetAVLTreeNode(AVL, (void *)currentUser);
+                if (matchNode != NULL)
                 {
-                    perror("write error");
+                    /*若匹配结点不为空说明账号正确，此时确认密码是否正确*/
+                    /*将matchNode中的data强转为USR型，否则strncmp会调用错误*/
+                    nodeUser = (USER *)matchNode->data;
+                    size_t len1 = strlen(nodeUser->password);
+                    size_t len2 = strlen(currentUser->password);
+                    if (strncmp(nodeUser->password, currentUser->password, len1 < len2 ? len1 : len2) == 0)
+                    {
+                        /*如果匹配*/
+                        strncpy(sendBuffer, "登陆成功", sizeof(sendBuffer) - 1);
+                        int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                        if (retwrite == -1)
+                        {
+                            perror("write error");
+                        }
+
+                        /*登录成功的人要加入数据库,上锁*/
+                        pthread_mutex_lock(&g_mutex);
+                        ret = dataBaseFriendOnline(nodeUser->name);
+                        pthread_mutex_unlock(&g_mutex);
+
+                        if (ret != ON_SUCCESS)
+                        {
+                            printf("dataBaseFriendInsert error\n");
+                        }
+                        json_object_put(parseObj); // 释放 parseObj
+                    }
+                    else
+                    {
+                        /*密码不匹配，重新登录*/
+                        strncpy(sendBuffer, "密码不正确,请重新登陆", sizeof(sendBuffer) - 1);
+                        int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                        if (retwrite == -1)
+                        {
+                            perror("write error");
+                        }
+                        json_object_put(parseObj); // 释放 parseObj
+                        sleep(2);
+                    }
                 }
-                json_object_put(parseObj); // 释放 parseObj
-                sleep(2);
+                else
+                {
+                    /*如果匹配结点为空则说明输入的账户不存在*/
+                    strncpy(sendBuffer, "用户不存在,请重新输入或者注册", sizeof(sendBuffer) - 1);
+                    int retwrite = write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer) - 1);
+                    if (retwrite == -1)
+                    {
+                        perror("write error");
+                    }
+                    json_object_put(parseObj); // 释放 parseObj
+                    sleep(2);
+                }
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
+            {
+                /*给传入进来的name发送好友请求消息*/
+                ret = dataBaseTakeApplyToName(parseObj, nodeUser->name);
+                if (ret != ON_SUCCESS)
+                {
+                    printf("dataBaseTakeApplyToName error\n");
+                }
+                strncpy(sendBuffer, "已发送好友申请", sizeof(sendBuffer) - 1);
+                write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
             }
         }
-        else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
-        {
-           
-        }
     }
+
     /* 释放堆空间 */
     if (fdset)
     {
@@ -457,7 +470,7 @@ int main()
             int fd = events[idx].data.fd;
             if (fd == sockfd)
             {
-#if 0
+#if 1
                 int acceptfd = accept(sockfd, NULL, NULL);
                 if (acceptfd == -1)
                 {
@@ -489,7 +502,9 @@ int main()
                 }
                 set->epollfd = epfd;
                 set->acceptfd = fd;
+                printf("check-------aaa------\n");
                 threadPoolAdd(pool, communicate_handler, (void *)set);
+                printf("check-------bbbb------\n");
             }
         }
     }

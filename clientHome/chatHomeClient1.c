@@ -140,7 +140,7 @@ static int clientRegister(int sockfd)
             checkout = 1;
         }
     }
-    printf("check valid------------ing-----------\n");
+
     json_object_object_add(registerObj, "choices", json_object_new_string(demand));
     json_object_object_add(registerObj, "account", json_object_new_string(accountNumber));
     json_object_object_add(registerObj, "password", json_object_new_string(accord));
@@ -153,7 +153,7 @@ static int clientRegister(int sockfd)
     {
         perror("write error");
     }
-
+    printf("check valid------------ing-----------\n");
     return ret;
 }
 int addfriend(int sockfd)
@@ -182,6 +182,7 @@ int addfriend(int sockfd)
     struct json_object *applyObj = json_object_new_object();
     json_object_object_add(applyObj, "options", json_object_new_int(options));
     json_object_object_add(applyObj, "name", json_object_new_string(name));
+    json_object_object_add(applyObj, "choices", json_object_new_string("c"));
     const char *sendStr = json_object_to_json_string(applyObj);
     int len = strlen(sendStr);
     /*将json对象转化为字符串发给服务器*/
@@ -190,8 +191,9 @@ int addfriend(int sockfd)
     {
         perror("write error");
     }
-    printf("已发送好友申请\n");
+    printf("发送中\n");
     sleep(2);
+
     return ON_SUCCESS;
 }
 int friendApplication(int sockfd)
@@ -318,11 +320,16 @@ int main()
         case ADD_FRIEND:
         {
             addfriend(sockfd);
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
             break;
         }
         case FRIEND_APPLICATION:
         {
-
             break;
         }
         case DELETE_FRIREND:

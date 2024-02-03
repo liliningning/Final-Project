@@ -141,7 +141,7 @@ int main()
     //     }
     // }
     /*删除*/
-    sql = " DELETE FROM friend WHERE name = 'easy'";
+    sql = " ALTER TABLE friend ADD  whetherFriend int default 0";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {

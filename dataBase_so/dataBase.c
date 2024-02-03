@@ -4,7 +4,7 @@
 #include <json-c/json.h>
 #include <json-c/json_object.h>
 #include <string.h>
-#define SQL_SIZE 64
+#define SQL_SIZE 256
 enum CODE_STATUS
 {
     REPEATED_USER = -1,
@@ -38,10 +38,10 @@ int dataBaseInit(sqlite3 **db)
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_exec error1:%s\n", errormsg);
+        printf("sqlite3_exec 7:%s\n", errormsg);
         exit(-1);
     }
-    sql = "create table if not exists friend(name text not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text)";
+    sql = "create table if not exists friend(name text not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text,friendApply int default 0)";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -112,7 +112,14 @@ int dataBaseUserInsert(struct json_object *parseObj)
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_exec error1:%s\n", errormsg);
+        printf("sqlite3_exec 8:%s\n", errormsg);
+        exit(-1);
+    }
+    sprintf(sql, "insert into friend ('name') values('%s')", json_object_get_string(acountVal));
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error3:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -137,7 +144,14 @@ int dataBaseFriendOnline(const char *friendName)
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_exec error1:%s\n", errormsg);
+        printf("sqlite3_exec 9:%s\n", errormsg);
+        exit(-1);
+    }
+    sprintf(sql, "UPDATE friend SET whetherOnline = 1 WHERE name = '%s'", friendName);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error4:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -161,29 +175,44 @@ int dataBaseFriendOffline(struct json_object *parseObj)
     char sql[SQL_SIZE] = {0};
     /*将下线的账户的在线状态置为0*/
     sprintf(sql, " update friend SET whetherOnline = 0 WHERE name = '%s'", json_object_get_string(acountVal));
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec error1:%s\n", errormsg);
         exit(-1);
     }
-    sqlite3_close(mydb);
-    return ON_SUCCESS;
-}
-
-/* 好友表的插入 insert   into values */
-int dataBaseFriendInsert(const char *name, const char *friendName)
-{
-    /*打开数据库*/
-    sqlite3 *mydb = NULL;
-    openSql(&mydb);
-    /*插入用户信息*/
-    char *errormsg = NULL;
-    char sql[SQL_SIZE] = {0};
-    int ret = sprintf(sql, "insert into friend values('%s', '%s', NULL, NULL,) ", name, friendName);
+    sprintf(sql, " update friend SET whetherOnline = 0 WHERE friendName = '%s'", json_object_get_string(acountVal));
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("inster into friend %s", errormsg);
+        printf("sqlite3_exec error5:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
+    return ON_SUCCESS;
+}
+/*好友申请*/
+int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName)
+{
+    sqlite3 *mydb = NULL;
+    struct json_object *nameVal = json_object_object_get(parseObj, "name");
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    /*将添加好友的对象的申请状态置为1*/
+    sprintf(sql, " update friend SET friendApply = 1,friendName = '%s' WHERE name = '%s'", json_object_get_string(nameVal), friendName);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec 6:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+    return ON_SUCCESS;
 }
