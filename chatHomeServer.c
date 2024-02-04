@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define SERVER_PORT 8851
+#define SERVER_PORT 8850
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -46,7 +46,7 @@ pthread_mutex_t g_mutex;
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
-    FRIEND_APPLICATION = 2,
+    HANDLE_APPLICATION = 2,
     DELETE_FRIREND = 3,
     SEND_MESSAGE = 4,
 } AFTER_LOGIN;
@@ -77,7 +77,7 @@ int compareFunc(void *arg1, void *arg2)
     USER val2 = *(USER *)arg2;
     size_t len1 = strlen(val1.name);
     size_t len2 = strlen(val2.name);
-    return strncmp(val1.name, val2.name, len1 < len2 ? len1 : len2);
+    return strcmp(val1.name, val2.name);
 }
 
 void *accept_handler(void *arg)
@@ -149,7 +149,7 @@ void *communicate_handler(void *arg)
             if (ret == -1)
             {
                 perror("epoll_ctl2 error");
-                exit(-1);
+                continue;
             }
             pthread_mutex_unlock(&g_mutex);
             close(fdset->acceptfd);
@@ -240,7 +240,7 @@ void *communicate_handler(void *arg)
                     nodeUser = (USER *)matchNode->data;
                     size_t len1 = strlen(nodeUser->password);
                     size_t len2 = strlen(currentUser->password);
-                    if (strncmp(nodeUser->password, currentUser->password, len1 < len2 ? len1 : len2) == 0)
+                    if (strncmp(nodeUser->password, currentUser->password, sizeof(nodeUser->password) - 1) == 0)
                     {
                         /*如果匹配*/
                         strncpy(sendBuffer, "登陆成功", sizeof(sendBuffer) - 1);
@@ -297,6 +297,44 @@ void *communicate_handler(void *arg)
                 }
                 strncpy(sendBuffer, "已发送好友申请", sizeof(sendBuffer) - 1);
                 write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == HANDLE_APPLICATION)
+            {
+
+                char *friendName = dataBaseFindApplyFriendName(nodeUser->name);
+
+                if (friendName != NULL)
+                {
+                    printf("%s\n", friendName);
+                    sprintf(sendBuffer, "'%s'向你发送好友申请", friendName);
+                    /*发给qwe,让qwe的数据库private上有接受或者拒绝的信息*/
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                    int status = 0;
+                    ret = read(fdset->acceptfd, &status, sizeof(status));
+                    if (ret < 0)
+                    {
+                        perror("read error");
+                    }
+                    else if (ret == 0)
+                    {
+                        printf("客户端下线\n");
+                    }
+                    else
+                    {
+                        handleApply(status, nodeUser->name);
+                    }
+                }
+                else
+                {
+                    strncpy(sendBuffer, "暂时没有好友申请", sizeof(sendBuffer) - 1);
+                    /*发给qwe,让qwe的数据库private上有接受或者拒绝的信息*/
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == DELETE_FRIREND)
+            {
+                /* 将数据库中的name和friendName的好友状态全部设置为0*/
+                dataBaseDeleteFriend(parseObj);
             }
         }
     }
@@ -460,10 +498,10 @@ int main()
         if (num == -1)
         {
             perror("epoll wait error");
-            exit(-1);
+            continue;
         }
         /* 程序到这里一定有通信 */
-        printf("num = %d\n", num);
+        // printf("num = %d\n", num);
 
         for (int idx = 0; idx < num; idx++)
         {
@@ -471,6 +509,7 @@ int main()
             if (fd == sockfd)
             {
 #if 1
+                printf("监听到客户端请求连接事件\n");
                 int acceptfd = accept(sockfd, NULL, NULL);
                 if (acceptfd == -1)
                 {
@@ -478,11 +517,21 @@ int main()
                     exit(-1);
                 }
                 /* 将通信句柄放到epoll的红黑树上 */
-                struct epoll_event event;
-                event.data.fd = acceptfd;
-                event.events = EPOLLIN | EPOLLOUT;
-                epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &event);
+                // struct epoll_event event;
+                // event.data.fd = acceptfd;
+                // event.events = EPOLLIN | EPOLLOUT;
+                // epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &event);
+                Fdset *set = calloc(1, sizeof(Fdset));
+                if (set == NULL)
+                {
+                    continue;
+                }
+                set->epollfd = epfd;
+                set->acceptfd = acceptfd;
+                printf("监听到读事件，添加一次服务端服务任务\n");
+                threadPoolAdd(pool, communicate_handler, (void *)set);
 #else
+
                 Fdset *set = calloc(1, sizeof(Fdset));
                 if (set == NULL)
                 {
@@ -495,16 +544,7 @@ int main()
             }
             else
             {
-                Fdset *set = calloc(1, sizeof(Fdset));
-                if (set == NULL)
-                {
-                    continue;
-                }
-                set->epollfd = epfd;
-                set->acceptfd = fd;
-                printf("check-------aaa------\n");
-                threadPoolAdd(pool, communicate_handler, (void *)set);
-                printf("check-------bbbb------\n");
+                printf("监听到客户端读写事件\n");
             }
         }
     }

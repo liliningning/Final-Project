@@ -15,4 +15,10 @@ int dataBaseFriendOnline(const char *name);
 int dataBaseFriendOffline(struct json_object *parseObj);
 /*给name发送好友申请*/
 int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName);
+/*name是否有好友申请*/
+int dataBaseFindFriendApply(char *name);
+/**/
+char *dataBaseFindApplyFriendName(char *name);
+/*处理好友申请*/
+int handleApply(int status, char *friendName);
 #endif

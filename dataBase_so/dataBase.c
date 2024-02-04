@@ -7,9 +7,12 @@
 #define SQL_SIZE 256
 enum CODE_STATUS
 {
-    REPEATED_USER = -1,
+    REPEATED_USER = -2,
+    NO_APPLY,
     ON_SUCCESS,
 };
+#define ACCEPT 1
+#define DENY 2
 /* 打开数据库的函数 */
 static int openSql(sqlite3 **mydb)
 {
@@ -115,13 +118,6 @@ int dataBaseUserInsert(struct json_object *parseObj)
         printf("sqlite3_exec 8:%s\n", errormsg);
         exit(-1);
     }
-    sprintf(sql, "insert into friend ('name') values('%s')", json_object_get_string(acountVal));
-    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
-    if (ret != SQLITE_OK)
-    {
-        printf("sqlite3_exec error3:%s\n", errormsg);
-        exit(-1);
-    }
     sqlite3_close(mydb);
     return ON_SUCCESS;
 }
@@ -181,7 +177,7 @@ int dataBaseFriendOffline(struct json_object *parseObj)
         printf("sqlite3_exec error1:%s\n", errormsg);
         exit(-1);
     }
-    sprintf(sql, " update friend SET whetherOnline = 0 WHERE friendName = '%s'", json_object_get_string(acountVal));
+    sprintf(sql, " update friend SET whetherOnline = 0 WHERE friendName is not null and friendName = '%s'", json_object_get_string(acountVal));
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -206,7 +202,14 @@ int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName)
     char *errormsg = NULL;
     char sql[SQL_SIZE] = {0};
     /*将添加好友的对象的申请状态置为1*/
-    sprintf(sql, " update friend SET friendApply = 1,friendName = '%s' WHERE name = '%s'", json_object_get_string(nameVal), friendName);
+    sprintf(sql, " insert into friend ('name','friendName','friendApply') values('%s','%s',1)", json_object_get_string(nameVal), friendName);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec 6:%s\n", errormsg);
+        exit(-1);
+    }
+    sprintf(sql, " insert into friend ('name','friendName','friendApply') values('%s','%s',0)", friendName, json_object_get_string(nameVal));
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -215,4 +218,147 @@ int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName)
     }
     sqlite3_close(mydb);
     return ON_SUCCESS;
+}
+/*name是否有好友申请*/
+int dataBaseFindFriendApply(char *name)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, " SELECT friendApply = 1  FROM friend WHERE name = '%s'", name);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_get_table error8:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+    if (result[1] != NULL)
+    {
+        return ON_SUCCESS;
+    }
+    else
+    {
+        return NO_APPLY;
+    }
+}
+char *dataBaseFindApplyFriendName(char *name)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and friendApply=1 ", name);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_get_table error8:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+
+    if (result[0] != NULL)
+    {
+        return result[1];
+    }
+    else
+    {
+        return NULL;
+    }
+}
+static char *dataBaseAppointFriendNameFindName(char *friendName)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and friendAppy=1", friendName);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_get_table error8:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+    return result[1];
+}
+int handleApply(int status, char *name)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char *friendName = dataBaseFindApplyFriendName(name);
+    /*将添加好友的对象的申请状态置为1*/
+    if (status == ACCEPT)
+    {
+        sprintf(sql, " update friend SET whetherFriend = 1 WHERE name = '%s'and friendName='%s'", name, friendName);
+        ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+        if (ret != SQLITE_OK)
+        {
+            printf("sqlite3_exec 6:%s\n", errormsg);
+            exit(-1);
+        }
+        sprintf(sql, " update friend SET whetherFriend = 1 WHERE name = '%s'and friendName='%s'", friendName, name);
+        ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+        if (ret != SQLITE_OK)
+        {
+            printf("sqlite3_exec 6:%s\n", errormsg);
+            exit(-1);
+        }
+    }
+    sprintf(sql, " update friend SET friendApply = 0 WHERE name = '%s'and friendName='%s'", name, friendName);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec 6:%s\n", errormsg);
+        exit(-1);
+    }
+    sprintf(sql, " update friend SET friendApply = 0 WHERE name = '%s'and friendName='%s'", friendName, name);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec 6:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
+    return ON_SUCCESS;
+}
+int dataBaseDeleteFriend(struct json_object *parseObj)
+{
+    struct json_object *deleteName = json_object_get_string(parseObj);
 }
