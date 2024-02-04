@@ -4,7 +4,7 @@
 #include <json-c/json.h>
 #include <json-c/json_object.h>
 #include <string.h>
-#define SQL_SIZE 256
+#define SQL_SIZE 1024
 enum CODE_STATUS
 {
     REPEATED_USER = -2,
@@ -239,7 +239,7 @@ int dataBaseFindFriendApply(char *name)
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_get_table error8:%s\n", errormsg);
+        printf("sqlite3_get_table error9:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -271,7 +271,7 @@ char *dataBaseFindApplyFriendName(char *name)
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_get_table error8:%s\n", errormsg);
+        printf("sqlite3_get_table error10:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -285,7 +285,7 @@ char *dataBaseFindApplyFriendName(char *name)
         return NULL;
     }
 }
-static char *dataBaseAppointFriendNameFindName(char *friendName)
+static char *dataBaseAppointFriendNameFindName(const char *friendName)
 {
     sqlite3 *mydb = NULL;
     /*打开数据库*/
@@ -300,11 +300,11 @@ static char *dataBaseAppointFriendNameFindName(char *friendName)
     char **result = NULL;
     int row = 0;
     int column = 0;
-    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and friendAppy=1", friendName);
+    sprintf(sql, " SELECT name FROM friend WHERE friendName = '%s' and friendApply=1", friendName);
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_get_table error8:%s\n", errormsg);
+        printf("sqlite3_get_table error11:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -358,7 +358,70 @@ int handleApply(int status, char *name)
     sqlite3_close(mydb);
     return ON_SUCCESS;
 }
-int dataBaseDeleteFriend(struct json_object *parseObj)
+static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow)
 {
-    struct json_object *deleteName = json_object_get_string(parseObj);
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend=1", name);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_get_table error8:%s\n", errormsg);
+        exit(-1);
+    }
+    if (result[0] != NULL)
+    {
+        *resultRow = row;
+        return result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName)
+{
+    const char *deleteName = json_object_get_string(json_object_object_get(parseObj, "deleteName"));
+    int row;
+    char **friendName = dataBaseAppointNameFindFriendName(deleteName, &row);
+    int idx = 1;
+    while (idx <= row)
+    {
+        printf("%s\n", friendName[idx]);
+        if (strcmp(friendName[idx], loginedName) == 0)
+        {
+            sqlite3 *mydb = NULL;
+            /*打开数据库*/
+            int ret = sqlite3_open("chatBase.db", &mydb);
+            if (ret != SQLITE_OK)
+            {
+                perror("sqlite3_open error");
+                exit(-1);
+            }
+            char *errormsg = NULL;
+            char sql[SQL_SIZE] = {0};
+            sprintf(sql, "delete from friend where (name='%s' AND friendName='%s' and whetherFriend=1) OR (name='%s' AND friendName='%s' and whetherFriend=1)", loginedName, friendName[idx], friendName[idx], loginedName);
+            ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+            if (ret != SQLITE_OK)
+            {
+                printf("sqlite3_exec 13:%s\n", errormsg);
+                exit(-1);
+            }
+            sqlite3_close(mydb);
+            return ON_SUCCESS;
+        }
+        idx++;
+    }
+    return NO_APPLY;
 }

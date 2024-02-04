@@ -334,7 +334,17 @@ void *communicate_handler(void *arg)
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == DELETE_FRIREND)
             {
                 /* 将数据库中的name和friendName的好友状态全部设置为0*/
-                dataBaseDeleteFriend(parseObj);
+                ret = dataBaseDeleteFriend(parseObj, nodeUser->name);
+                if (ret != ON_SUCCESS)
+                {
+                    strncpy(sendBuffer, "该用户不是你的好友", sizeof(sendBuffer) - 1);
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
+                else
+                {
+                    strncpy(sendBuffer, "删除成功", sizeof(sendBuffer) - 1);
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
             }
         }
     }

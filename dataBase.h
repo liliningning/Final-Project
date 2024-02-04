@@ -17,8 +17,10 @@ int dataBaseFriendOffline(struct json_object *parseObj);
 int dataBaseTakeApplyToName(struct json_object *parseObj, char *friendName);
 /*name是否有好友申请*/
 int dataBaseFindFriendApply(char *name);
-/**/
+/*找到有申请的好友名字*/
 char *dataBaseFindApplyFriendName(char *name);
 /*处理好友申请*/
 int handleApply(int status, char *friendName);
+/*好友表删除好友*/
+int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName);
 #endif

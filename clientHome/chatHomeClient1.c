@@ -379,8 +379,13 @@ int main()
         }
         case DELETE_FRIREND:
         {
-
             deleteFriend(sockfd);
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+            if (ret == -1)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
             break;
         }
         case SEND_MESSAGE:
