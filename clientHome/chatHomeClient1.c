@@ -24,9 +24,10 @@
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
-    HANDLE_APPLICATION = 2,
-    DELETE_FRIREND = 3,
-    SEND_MESSAGE = 4,
+    HANDLE_APPLICATION,
+    DELETE_FRIREND,
+    SEND_MESSAGE,
+    RECV_MESSAGE,
 } AFTER_LOGIN;
 /*全局变量*/
 BalanceBinarySearchTree *AVL = NULL;
@@ -57,15 +58,16 @@ int printStructData(void *arg)
     printf("val.name:%s\tval.password:%s\t", val.name, val.password);
     return ret;
 }
-static int clientLogIn(int sockfd)
+static int clientLogIn(int sockfd, char **loginedName)
 {
-    int ret = 0;
+
     char *demand = LOGIN;
 
     struct json_object *clientObj = json_object_new_object();
 
     /*账号*/
-    char accountNumber[BUFFER_SIZE];
+    char accountNumber[BUFFER_SIZE] = {0};
+    char *remainStart = accountNumber;
     /*密码*/
     char *passwordNumber = calloc(BUFFER_SIZE, sizeof(char));
     printf("请输入账号\n");
@@ -92,7 +94,14 @@ static int clientLogIn(int sockfd)
         perror("write error3");
     }
     printf("check whether valid------------ing-----------\n");
-    return ret;
+    *loginedName = remainStart;
+    if (passwordNumber != NULL)
+    {
+        free(passwordNumber);
+        passwordNumber = NULL;
+    }
+    json_object_put(clientObj);
+    return ON_SUCCESS;
 }
 static int clientRegister(int sockfd)
 {
@@ -154,6 +163,12 @@ static int clientRegister(int sockfd)
         perror("write error2");
     }
     printf("check valid------------ing-----------\n");
+    json_object_put(registerObj);
+    if (passwordNumber != NULL)
+    {
+        free(passwordNumber);
+        passwordNumber = NULL;
+    }
     return ON_SUCCESS;
 }
 int addfriend(int sockfd)
@@ -209,6 +224,7 @@ int friendApplication(int sockfd)
     {
         perror("write error1");
     }
+    json_object_put(clientObj);
     return ON_SUCCESS;
 }
 int dataBaseToMemory(sqlite3 *db, BalanceBinarySearchTree *avl)
@@ -255,8 +271,26 @@ int deleteFriend(int sockfd)
     {
         perror("write error1");
     }
+    json_object_put(clientObj);
     return ON_SUCCESS;
 }
+int sendMessage(int sockfd)
+{
+    struct json_object *clientObj = json_object_new_object();
+    json_object_object_add(clientObj, "options", json_object_new_int(SEND_MESSAGE));
+    json_object_object_add(clientObj, "choices", json_object_new_string("c"));
+    const char *sendStr = json_object_to_json_string(clientObj);
+    char sendBuf[BUFFER_SIZE] = {0};
+    strncpy(sendBuf, sendStr, sizeof(sendBuf) - 1);
+    int ret = write(sockfd, (void *)sendBuf, sizeof(sendBuf));
+    if (ret == -1)
+    {
+        perror("write error1");
+    }
+    json_object_put(clientObj);
+    return ON_SUCCESS;
+}
+
 int main()
 {
     /*初始化树*/
@@ -296,8 +330,11 @@ int main()
     char recvBuffer[BUFFER_SIZE];
     memset(recvBuffer, 0, sizeof(recvBuffer));
 
+    char sendBuffer[BUFFER_SIZE];
+    memset(sendBuffer, 0, sizeof(sendBuffer));
     char *choices = calloc(BUFFER_SIZE, sizeof(char));
     int options = 0;
+    char *loginedName = calloc(BUFFER_SIZE, sizeof(char *));
     while (strcmp(recvBuffer, SUCCESS_LOGIN))
     {
         printf("正在加载页面...\n");
@@ -323,7 +360,7 @@ int main()
         }
         else if (!strcmp(choices, LOGIN))
         {
-            clientLogIn(sockfd);
+            clientLogIn(sockfd, &loginedName);
             /*睡一会，等待函数执行*/
             sleep(2);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer) - 1);
@@ -336,6 +373,7 @@ int main()
         sleep(1);
     }
     /*登录成功*/
+    printf("loginedName=%s\n", loginedName);
     while (1)
     {
         printf("请输入选项:\n");
@@ -347,7 +385,7 @@ int main()
         {
             addfriend(sockfd);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
-            if (ret == -1)
+            if (ret <= 0)
             {
                 perror("read error");
             }
@@ -359,7 +397,7 @@ int main()
             /*向服务器发送HANDLE_APPLICATION请求*/
             friendApplication(sockfd);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
-            if (ret == -1)
+            if (ret <= 0)
             {
                 perror("read error");
             }
@@ -381,7 +419,7 @@ int main()
         {
             deleteFriend(sockfd);
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
-            if (ret == -1)
+            if (ret <= 0)
             {
                 perror("read error");
             }
@@ -390,6 +428,27 @@ int main()
         }
         case SEND_MESSAGE:
         {
+            ret = dataBaseDisPlayFriend(loginedName);
+            printf("dataBaseDisPlayFriend  ending\n");
+            sleep(1);
+            if (ret != ON_SUCCESS)
+            {
+                printf("还没有好友,请添加好友\n");
+            }
+            /*输入你要聊天的对象*/
+            printf("输入你要聊天的对象:\n");
+            scanf("%s", sendBuffer);
+            ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+            if (ret <= 0)
+            {
+                perror("read error");
+            }
+            printf("提示:%s\n", recvBuffer);
+            break;
+        }
+        case RECV_MESSAGE:
+        {
+
             break;
         }
         default:
@@ -401,6 +460,6 @@ int main()
     sleep(5);
 
     close(sockfd);
-
+    balanceBinarySearchTreeDestroy(AVL);
     return 0;
 }

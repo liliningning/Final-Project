@@ -4,7 +4,8 @@
 #include <json-c/json.h>
 #include <json-c/json_object.h>
 #include <string.h>
-#define SQL_SIZE 1024
+#include <unistd.h>
+#define SQL_SIZE 666
 enum CODE_STATUS
 {
     REPEATED_USER = -2,
@@ -29,7 +30,7 @@ int dataBaseInit(sqlite3 **db)
 {
     sqlite3 *mydb = NULL;
     /*打开数据库*/
-    int ret = sqlite3_open("chatBase.db", &mydb);
+    int ret = sqlite3_open("../chatBase.db", &mydb);
     if (ret != SQLITE_OK)
     {
         perror("sqlite3_open error");
@@ -362,25 +363,26 @@ static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow
 {
     sqlite3 *mydb = NULL;
     /*打开数据库*/
-    int ret = sqlite3_open("chatBase.db", &mydb);
+    int ret = sqlite3_open("/code/chatHome/Final-Project/chatBase.db", &mydb);
     if (ret != SQLITE_OK)
     {
         perror("sqlite3_open error");
         exit(-1);
     }
     char *errormsg = NULL;
+    /*bug->todo...*/
     char sql[SQL_SIZE] = {0};
     char **result = NULL;
     int row = 0;
     int column = 0;
-    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend=1", name);
+    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend = 1 ", name);
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_get_table error8:%s\n", errormsg);
         exit(-1);
     }
-    if (result[0] != NULL)
+    if (row != 0)
     {
         *resultRow = row;
         return result;
@@ -424,4 +426,27 @@ int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName)
         idx++;
     }
     return NO_APPLY;
+}
+
+int dataBaseDisPlayFriend(const char *loginedName)
+{
+    int row = 0;
+    char **friendName = NULL;
+    friendName = dataBaseAppointNameFindFriendName(loginedName, &row);
+    sqlite3 *mydb = NULL;
+    if (row == 0)
+    {
+        return NO_APPLY;
+    }
+    else
+    {
+        int idx = 1;
+        while (idx <= row)
+        {
+            printf("%s\t", friendName[idx]);
+        }
+        printf("\n");
+        sleep(1);
+        return ON_SUCCESS;
+    }
 }

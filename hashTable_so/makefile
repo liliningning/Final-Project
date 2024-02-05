@@ -1,25 +1,22 @@
 #自定义变量
 #变量赋值
 OBJ=$(patsubst %.c,%.o,$(wildcard ./*.c))
-TARGET=client
+TARGET=libSoMyHash.so
 
-LDFLAGS=-L../src_so -L../dataBase_so
-LIBS=-ljson-c -lsqlite3 -lSoMyTree -lSoMydataBase
 #使用$(TARGET)，必须要加$符号
 $(TARGET):$(OBJ)
-	$(CC) -g $^ $(LDFLAGS) $(LIBS)  -o $@
-
+	$(CC) -g $^ -shared -fPIC -o $@
+	cp $(TARGET) /usr/lib/
 %.o:%.c
 	$(CC) -g -c $^ -o $@
 
 .PHONY: clean
 
 clean:
-	@$(RM) $(OBJ) $(TARGET)
+	$(RM) $(OBJ) $(TARGET)
+	$(RM) /usr/lib/$(TARGET)
 
 show:
-	@echo $(RM)
-	@echo $(CC)
-	@echo $(CXX)
+	$(RM) /usr/lib/$(TARGET)
 	@echo $(wildcard ./*.c)
 	@echo $(patsubst %.c,%.o,$(wildcard ./*.c))

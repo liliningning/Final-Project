@@ -23,4 +23,6 @@ char *dataBaseFindApplyFriendName(char *name);
 int handleApply(int status, char *friendName);
 /*好友表删除好友*/
 int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName);
+/*展示当前登录用户的好友名*/
+int dataBaseDisPlayFriend(const char *loginedName);
 #endif

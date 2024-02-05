@@ -43,6 +43,7 @@ int sockfd;
 BalanceBinarySearchTree *AVL = NULL;
 sqlite3 *mydb = NULL;
 pthread_mutex_t g_mutex;
+
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
@@ -195,8 +196,7 @@ void *communicate_handler(void *arg)
                     {
                         perror("write error");
                     }
-                    json_object_put(parseObj); // 释放 parseObj
-                    sleep(2);
+                    sleep(1);
                 }
                 else
                 {
@@ -219,7 +219,6 @@ void *communicate_handler(void *arg)
                     {
                         perror("write error");
                     }
-                    json_object_put(parseObj); // 释放 parseObj
                     sleep(2);
                 }
             }
@@ -259,7 +258,6 @@ void *communicate_handler(void *arg)
                         {
                             printf("dataBaseFriendInsert error\n");
                         }
-                        json_object_put(parseObj); // 释放 parseObj
                     }
                     else
                     {
@@ -270,7 +268,6 @@ void *communicate_handler(void *arg)
                         {
                             perror("write error");
                         }
-                        json_object_put(parseObj); // 释放 parseObj
                         sleep(2);
                     }
                 }
@@ -283,8 +280,7 @@ void *communicate_handler(void *arg)
                     {
                         perror("write error");
                     }
-                    json_object_put(parseObj); // 释放 parseObj
-                    sleep(2);
+                    sleep(1);
                 }
             }
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
@@ -346,7 +342,17 @@ void *communicate_handler(void *arg)
                     write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
                 }
             }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == SEND_MESSAGE)
+            {
+                ret = dataBaseDisPlayFriend(nodeUser->name);
+                if (ret != ON_SUCCESS)
+                {
+                    strncpy(sendBuffer, "未添加好友,请先添加好友", sizeof(sendBuffer) - 1);
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
+            }
         }
+        json_object_put(parseObj);
     }
 
     /* 释放堆空间 */
@@ -354,6 +360,16 @@ void *communicate_handler(void *arg)
     {
         free(fdset);
         fdset = NULL;
+    }
+    if (demand != NULL)
+    {
+        free(demand);
+        demand = NULL;
+    }
+    if (currentUser != NULL)
+    {
+        free(currentUser);
+        currentUser = NULL;
     }
     pthread_exit(NULL);
 }
