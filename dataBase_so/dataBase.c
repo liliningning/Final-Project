@@ -361,6 +361,8 @@ int handleApply(int status, char *name)
 }
 static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow)
 {
+    char pptmp[20] = {0};
+    strncpy(pptmp, name, sizeof(pptmp) - 1);
     sqlite3 *mydb = NULL;
     /*打开数据库*/
     int ret = sqlite3_open("/code/chatHome/Final-Project/chatBase.db", &mydb);
@@ -375,7 +377,7 @@ static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow
     char **result = NULL;
     int row = 0;
     int column = 0;
-    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend = 1 ", name);
+    sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend = 1 ", pptmp);
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -444,6 +446,7 @@ int dataBaseDisPlayFriend(const char *loginedName)
         while (idx <= row)
         {
             printf("%s\t", friendName[idx]);
+            idx++;
         }
         printf("\n");
         sleep(1);

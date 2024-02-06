@@ -429,15 +429,18 @@ int main()
         case SEND_MESSAGE:
         {
             ret = dataBaseDisPlayFriend(loginedName);
-            printf("dataBaseDisPlayFriend  ending\n");
             sleep(1);
             if (ret != ON_SUCCESS)
             {
                 printf("还没有好友,请添加好友\n");
             }
-            /*输入你要聊天的对象*/
-            printf("输入你要聊天的对象:\n");
-            scanf("%s", sendBuffer);
+            else
+            {
+                /*输入你要聊天的对象*/
+                printf("输入你要聊天的对象:\n");
+                scanf("%s", sendBuffer);
+            };
+
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
             if (ret <= 0)
             {
