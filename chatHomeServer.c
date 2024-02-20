@@ -24,7 +24,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-
+#include "hashtable.h"
 #define SERVER_PORT 8850
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -36,8 +36,9 @@
 #define USER_SIZE 128
 #define REGISTER "a"
 #define LOGIN "b"
+#define SLOTNUMS 37
 /*全局变量，方便捕捉信号后释放资源*/
-
+HashTable *hash = NULL;
 ThreadPool *pool = NULL;
 int sockfd;
 BalanceBinarySearchTree *AVL = NULL;
@@ -344,12 +345,16 @@ void *communicate_handler(void *arg)
             }
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == SEND_MESSAGE)
             {
-                ret = dataBaseDisPlayFriend(nodeUser->name);
-                if (ret != ON_SUCCESS)
-                {
-                    strncpy(sendBuffer, "未添加好友,请先添加好友", sizeof(sendBuffer) - 1);
-                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
-                }
+                struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
+                struct json_object *chatFriendNameVal = json_object_object_get(parseObj, "chatFriendName");
+                struct json_object *messageVal = json_object_object_get(parseObj, "message");
+                MessagePackage messageSet;
+                memset(&messageSet, 0, sizeof(messageSet));
+                strncpy(messageSet.message, json_object_get_string(messageVal), sizeof(messageSet.message) - 1);
+                strncpy(messageSet.sender, json_object_get_string(loginedNameVal), sizeof(messageSet.sender) - 1);
+                char chatFriendName[BUFFER_SIZE] = {0};
+                strncpy(chatFriendName, json_object_get_string(chatFriendNameVal), sizeof(chatFriendNameVal) - 1);
+                hashTableInsert(hash, chatFriendName, messageSet);
             }
         }
         json_object_put(parseObj);
@@ -375,7 +380,8 @@ void *communicate_handler(void *arg)
 }
 void signal_handler(int sig)
 {
-    /*销毁线程成*/
+    hashTableDestroy(hash);
+    /*销毁线程池*/
     threadPoolDestroy(pool);
     /*关闭文件描述符*/
     close(sockfd);
@@ -422,8 +428,15 @@ int printStructData(void *arg)
     printf("val.name:%s\tval.password:%s\t", val.name, val.password);
     return ret;
 }
+int compareHash(ELEMENTTYPE arg1, ELEMENTTYPE arg2)
+{
+    hashNode node1 = *(hashNode *)arg1;
+    hashNode node2 = *(hashNode *)arg2;
+    return strcmp(node1.real_key, node2.real_key);
+}
 int main()
 {
+    hashTableInit(&hash, SLOTNUMS, compareHash);
     /*初始化树，数据库，线程池，锁*/
     /*初始化树*/
     balanceBinarySearchTreeInit(&AVL, compareFunc, printStructData);

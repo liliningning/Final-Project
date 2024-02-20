@@ -13,6 +13,7 @@
 #include "balanceBinarySearchTree.h"
 #include <sqlite3.h>
 #include "dataBase.h"
+#include "hashtable.h"
 #define SERVER_PORT 8850
 #define SERVER_IP "172.23.232.7"
 #define BUFFER_SIZE 128
@@ -274,11 +275,14 @@ int deleteFriend(int sockfd)
     json_object_put(clientObj);
     return ON_SUCCESS;
 }
-int sendMessage(int sockfd)
+int sendMessage(int sockfd, char *loginedName, char *chatFriendName, char *message)
 {
     struct json_object *clientObj = json_object_new_object();
     json_object_object_add(clientObj, "options", json_object_new_int(SEND_MESSAGE));
     json_object_object_add(clientObj, "choices", json_object_new_string("c"));
+    json_object_object_add(clientObj, "loginedName", json_object_new_string(loginedName));
+    json_object_object_add(clientObj, "chatFriendName", json_object_new_string(chatFriendName));
+    json_object_object_add(clientObj, "message", json_object_new_string(message));
     const char *sendStr = json_object_to_json_string(clientObj);
     char sendBuf[BUFFER_SIZE] = {0};
     strncpy(sendBuf, sendStr, sizeof(sendBuf) - 1);
@@ -335,6 +339,9 @@ int main()
     char *choices = calloc(BUFFER_SIZE, sizeof(char));
     int options = 0;
     char *loginedName = calloc(BUFFER_SIZE, sizeof(char *));
+    char chatFriendName[BUFFER_SIZE];
+    memset(chatFriendName, 0, sizeof(chatFriendName));
+    char message[BUFFER_SIZE] = {0};
     while (strcmp(recvBuffer, SUCCESS_LOGIN))
     {
         printf("正在加载页面...\n");
@@ -438,20 +445,16 @@ int main()
             {
                 /*输入你要聊天的对象，将登录用户,接收消息的人和消息打包成json发送给服务器处理*/
                 printf("输入你要聊天的对象:\n");
-                scanf("%s", sendBuffer);
+                scanf("%s", chatFriendName);
             }
-
-            ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
-            if (ret <= 0)
-            {
-                perror("read error");
-            }
-            printf("提示:%s\n", recvBuffer);
+            printf("输入聊天内容:\n");
+            scanf("%s", message);
+            sendMessage(sockfd, loginedName, chatFriendName, message);
             break;
         }
         case RECV_MESSAGE:
         {
-
+            
             break;
         }
         default:
@@ -459,9 +462,13 @@ int main()
         }
     }
 
+    if (loginedName != NULL)
+    {
+        free(loginedName);
+        loginedName = NULL;
+    }
     /* 休息5S */
     sleep(5);
-
     close(sockfd);
     balanceBinarySearchTreeDestroy(AVL);
     return 0;

@@ -4,7 +4,7 @@ OBJ = $(patsubst %.c, %.o, $(wildcard ./*.c))
 TARGET = server
 
 LDFLAGS = -L./src_so -L./dataBase_so -L./hashTable_so
-LIBS = -ljson-c -lsqlite3 -lSoMyTree -lSoMydataBase -libSoMyHash
+LIBS = -ljson-c -lsqlite3 -lSoMyTree -lSoMydataBase -lSoMyHash
 
 # 使用$(TARGET)，必须要加$符号
 $(TARGET): $(OBJ)
