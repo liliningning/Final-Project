@@ -436,10 +436,10 @@ int main()
             }
             else
             {
-                /*输入你要聊天的对象*/
+                /*输入你要聊天的对象，将登录用户,接收消息的人和消息打包成json发送给服务器处理*/
                 printf("输入你要聊天的对象:\n");
                 scanf("%s", sendBuffer);
-            };
+            }
 
             ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
             if (ret <= 0)

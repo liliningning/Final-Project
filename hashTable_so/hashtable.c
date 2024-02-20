@@ -5,7 +5,7 @@
 #include <error.h>
 #include <string.h>
 
-#define DEFAULT_SLOT_NUMS 10
+#define DEFAULT_SLOT_NUMS 37
 
 /* 函数前置声明 */
 static int calHashValue(HashTable *pHashtable, HASH_KEYTYPE key, int *slotKeyId);
@@ -67,10 +67,15 @@ int hashTableInit(HashTable **pHashtable, int slotNums, int (*compareFunc)(ELEME
 static int calHashValue(HashTable *pHashtable, HASH_KEYTYPE key, int *slotKeyId)
 {
     int ret = 0;
-    if (slotKeyId)
+    int sum = 0;
+    /*防止key执行完哈希函数后指向字符串末尾导致后续赋值出现错误*/
+    char *temp = key;
+    while (*temp != '\0')
     {
-        *slotKeyId = key % (pHashtable->slotNums);
+        sum = sum + *temp;
+        temp++;
     }
+    *slotKeyId = sum % (pHashtable->slotNums);
     return ret;
 }
 
@@ -99,7 +104,7 @@ int hashTableInsert(HashTable *pHashtable, HASH_KEYTYPE key, HASH_VALUETYPE valu
     /* 判空 */
     if (pHashtable == NULL)
     {
-        return -1;
+        return NULL_PTR;
     }
 
     int ret = 0;
@@ -116,6 +121,7 @@ int hashTableInsert(HashTable *pHashtable, HASH_KEYTYPE key, HASH_VALUETYPE valu
         perror("create hash node error");
         return MALLOC_ERROR;
     }
+#if 0 /*去重，哈希表存储消息，不需要去重*/
     DoubleLinkNode *node = pHashtable->slotKeyId[KeyId]->head->next;
     while (node != NULL)
     {
@@ -134,6 +140,7 @@ int hashTableInsert(HashTable *pHashtable, HASH_KEYTYPE key, HASH_VALUETYPE valu
         }
         node = node->next;
     }
+#endif
     /* 将哈希结点插入到链表中. */
     DoubleLinkListTailInsert(pHashtable->slotKeyId[KeyId], newNode);
 
@@ -178,31 +185,60 @@ int hashTableDelAppointKey(HashTable *pHashtable, HASH_KEYTYPE key)
     }
     return ret;
 }
-
-/* 哈希表 根据key获取value. */
-int hashTableGetAppointKeyValue(HashTable *pHashtable, int key, int *mapValue)
+/*根据结点找到对应的值*/
+char **DoubleLinkListAppointKeyValGetAllNodeValue(DoubleLinkList *pList, ELEMENTTYPE val, int (*compareFunc)(ELEMENTTYPE, ELEMENTTYPE), int *pRow)
 {
-    int ret = 0;
+    int row = 0;
+    int pos = 0;
+    char **result = NULL;
+    int idx = 0;
+    DoubleLinkNode *travelNode = pList->head->next;
+    int cmp = 0;
+    while (travelNode != NULL)
+    {
+        cmp = compareFunc(val, travelNode->data);
+        if (cmp == 0)
+        {
+            hashNode *mapNode = (hashNode *)travelNode->data;
+            result[idx] = mapNode->value.message;
+            idx++;
+        }
+        /* 遍历 */
+        travelNode = travelNode->next;
+    }
+    if (idx > 0)
+    {
+        *pRow = row;
+        return result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+/* 哈希表 根据key获取所有value中的message */
+int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char ***messageList, int *pRow)
+{
 
     /* 将外部传过来的key 转化为我哈希表对应的slotId */
     int KeyId = 0;
     calHashValue(pHashtable, key, &KeyId);
-
+    int row = 0;
     hashNode tmpNode;
+    memset(&tmpNode, 0, sizeof(hashNode));
+    /*遍历keyid所属链表，检索messagePackage的发送者名字，将正确的发送者消息全部取出*/
+    /*将key赋值给tmpNode*/
     tmpNode.real_key = key;
-    DoubleLinkNode *resNode = DoubleLinkListAppointKeyValGetNode((pHashtable->slotKeyId[KeyId]), &tmpNode, pHashtable->compareFunc);
-    if (resNode == NULL)
+    /*给出哈希节点的key，找出key所对应的所有消息*/
+    char **result = DoubleLinkListAppointKeyValGetAllNodeValue((pHashtable->slotKeyId[KeyId]), &tmpNode, pHashtable->compareFunc, &row);
+    if (result == NULL)
     {
         return -1;
     }
-
-    hashNode *mapNode = (hashNode *)resNode->data;
-    if (mapValue)
-    {
-        *mapValue = mapNode->value;
-    }
-
-    return ret;
+    /*解引用*/
+    *messageList = result;
+    *pRow = row;
+    return ON_SUCCESS;
 }
 
 /* 哈希表元素大小 */

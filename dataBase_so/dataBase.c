@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #define SQL_SIZE 666
+#define BUFFER_SIZE 32
 enum CODE_STATUS
 {
     REPEATED_USER = -2,
@@ -361,7 +362,7 @@ int handleApply(int status, char *name)
 }
 static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow)
 {
-    char pptmp[20] = {0};
+    char pptmp[BUFFER_SIZE] = {0};
     strncpy(pptmp, name, sizeof(pptmp) - 1);
     sqlite3 *mydb = NULL;
     /*打开数据库*/
