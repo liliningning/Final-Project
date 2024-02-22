@@ -25,4 +25,6 @@ int handleApply(int status, char *friendName);
 int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName);
 /*展示当前登录用户的好友名*/
 int dataBaseDisPlayFriend(const char *loginedName);
+/*查询群名是否合法*/
+int dataBaseCheckGroupName(char *groupName, char *loginedName);
 #endif

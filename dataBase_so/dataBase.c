@@ -9,8 +9,9 @@
 #define BUFFER_SIZE 32
 enum CODE_STATUS
 {
-    REPEATED_USER = -2,
+    REPEATED_USER = -3,
     NO_APPLY,
+    REPEATED_GROUPNAME,
     ON_SUCCESS,
 };
 #define ACCEPT 1
@@ -39,18 +40,27 @@ int dataBaseInit(sqlite3 **db)
     }
     /*创建用户信息表*/
     char *errormsg = NULL;
-    const char *sql = " create table if not exists user (name text primary key not null ,password text)";
+    char sql[SQL_SIZE] = " create table if not exists user (name text primary key not null ,password text)";
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
         printf("sqlite3_exec 7:%s\n", errormsg);
         exit(-1);
     }
-    sql = "create table if not exists friend(name text not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text,friendApply int default 0)";
+    memset(sql, 0, sizeof(sql));
+    strncpy(sql, "create table if not exists friend(name text not null,friendName text,acceptfd int default 0,whetherOnline int default 0,privateMessage text,friendApply int default 0)", sizeof(sql) - 1);
     ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     if (ret != SQLITE_OK)
     {
-        printf("sqlite3_exec error2:%s\n", errormsg);
+        printf("sqlite3_exec error113:%s\n", errormsg);
+        exit(-1);
+    }
+    memset(sql, 0, sizeof(sql));
+    strncpy(sql, "create table if not exists groupChat(groupName text not null,groupMemberName text not null)", sizeof(sql) - 1);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error112:%s\n", errormsg);
         exit(-1);
     }
     sqlite3_close(mydb);
@@ -454,5 +464,47 @@ int dataBaseDisPlayFriend(const char *loginedName)
         printf("\n");
         sleep(1);
         return ON_SUCCESS;
+    }
+}
+int dataBaseCheckGroupName(char *groupName, char *loginedName)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    /*查询群名是否存在数据库当中*/
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    sprintf(sql, "select * from groupChat where groupName='%s'", groupName);
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error111:%s\n", errormsg);
+        exit(-1);
+    }
+    if (row == 0)
+    {
+        /*表中无此群名，插入表中*/
+        sprintf(sql, "INSERT INTO groupChat (groupName,groupMemberName) VALUES ('%s','%s')", groupName, loginedName);
+        ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+        if (ret != SQLITE_OK)
+        {
+            printf("sqlite3_exec 14:%s\n", errormsg);
+            exit(-1);
+        }
+        sqlite3_close(mydb);
+        return ON_SUCCESS;
+    }
+    else
+    {
+        sqlite3_close(mydb);
+        return REPEATED_GROUPNAME;
     }
 }

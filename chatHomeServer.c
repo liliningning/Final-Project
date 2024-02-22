@@ -43,9 +43,13 @@ MsgHash *Hash = NULL;
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
-    HANDLE_APPLICATION = 2,
-    DELETE_FRIREND = 3,
-    SEND_MESSAGE = 4,
+    HANDLE_APPLICATION,
+    DELETE_FRIREND,
+    SEND_MESSAGE,
+    CREATE_GROUP,
+    ADD_GROUP,
+    GROUP_CHAT,
+    EXIT,
 } AFTER_LOGIN;
 typedef struct USER
 {
@@ -428,6 +432,27 @@ void *communicate_handler(void *arg)
                 char chatFriendName[BUFFER_SIZE] = {0};
                 strncpy(chatFriendName, json_object_get_string(chatFriendNameVal), sizeof(chatFriendName) - 1);
                 dealPrivateChat(fdset->acceptfd, loginedName, chatFriendName, Hash, &hash_mutex);
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == CREATE_GROUP)
+            {
+                struct json_object *groupNameVal = json_object_object_get(parseObj, "groupName");
+                const char *groupNameValue = json_object_get_string(groupNameVal);
+                char groupName[BUFFER_SIZE] = {0};
+                strncpy(groupName, groupNameValue, sizeof(groupName) - 1);
+                /* 先查询是否已经存在该群名 */
+                int ret = dataBaseCheckGroupName(groupName, nodeUser->name);
+                if (ret == ON_SUCCESS)
+                {
+                    /*成功创建群聊*/
+                    strncpy(sendBuffer, "创建群聊成功", sizeof(sendBuffer) - 1);
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
+                else
+                {
+                    /*群聊名重复*/
+                    strncpy(sendBuffer, "群聊名重复，请重新输入", sizeof(sendBuffer) - 1);
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
             }
         }
         json_object_put(parseObj);
