@@ -466,6 +466,48 @@ int dataBaseDisPlayFriend(const char *loginedName)
         return ON_SUCCESS;
     }
 }
+int dataBaseCreateGroup(char *groupName, char *loginedName)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    /*查询群名是否存在数据库当中*/
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, "select * from groupChat where groupName='%s'", groupName);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error111:%s\n", errormsg);
+        exit(-1);
+    }
+    if (row == 0)
+    {
+        /*表中无此群名，插入表中*/
+        sprintf(sql, "INSERT INTO groupChat (groupName,groupMemberName) VALUES ('%s','%s')", groupName, loginedName);
+        ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+        if (ret != SQLITE_OK)
+        {
+            printf("sqlite3_exec 14:%s\n", errormsg);
+            exit(-1);
+        }
+        sqlite3_close(mydb);
+        return ON_SUCCESS;
+    }
+    else
+    {
+        sqlite3_close(mydb);
+        return REPEATED_GROUPNAME;
+    }
+}
 int dataBaseCheckGroupName(char *groupName, char *loginedName)
 {
     sqlite3 *mydb = NULL;
@@ -491,14 +533,6 @@ int dataBaseCheckGroupName(char *groupName, char *loginedName)
     }
     if (row == 0)
     {
-        /*表中无此群名，插入表中*/
-        sprintf(sql, "INSERT INTO groupChat (groupName,groupMemberName) VALUES ('%s','%s')", groupName, loginedName);
-        ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
-        if (ret != SQLITE_OK)
-        {
-            printf("sqlite3_exec 14:%s\n", errormsg);
-            exit(-1);
-        }
         sqlite3_close(mydb);
         return ON_SUCCESS;
     }
@@ -507,4 +541,63 @@ int dataBaseCheckGroupName(char *groupName, char *loginedName)
         sqlite3_close(mydb);
         return REPEATED_GROUPNAME;
     }
+}
+int dataBaseCheckNameInGroup(char *groupName, char *loginedName)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    /*查询名字是否存群中当中*/
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    sprintf(sql, "SELECT * FROM groupChat WHERE groupName = '%s' AND groupMemberName = '%s'", groupName, loginedName);
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec error114:%s\n", errormsg);
+        exit(-1);
+    }
+    if (row == 0)
+    {
+        sqlite3_close(mydb);
+        return ON_SUCCESS;
+    }
+    else
+    {
+        sqlite3_close(mydb);
+        return REPEATED_GROUPNAME;
+    }
+}
+int dataBaseInsertGroup(char *groupName, char *loginedName)
+{
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    /*查询群名是否存在数据库当中*/
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    // char **result = NULL;
+    // int row = 0;
+    // int column = 0;
+    sprintf(sql, "INSERT INTO groupChat (groupName,groupMemberName) VALUES ('%s','%s')", groupName, loginedName);
+    ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_exec 14:%s\n", errormsg);
+        exit(-1);
+    }
+    sqlite3_close(mydb);
 }

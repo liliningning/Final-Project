@@ -440,7 +440,9 @@ void *communicate_handler(void *arg)
                 char groupName[BUFFER_SIZE] = {0};
                 strncpy(groupName, groupNameValue, sizeof(groupName) - 1);
                 /* 先查询是否已经存在该群名 */
+                pthread_mutex_lock(&g_mutex);
                 int ret = dataBaseCheckGroupName(groupName, nodeUser->name);
+                pthread_mutex_unlock(&g_mutex);
                 if (ret == ON_SUCCESS)
                 {
                     /*成功创建群聊*/
@@ -453,6 +455,73 @@ void *communicate_handler(void *arg)
                     strncpy(sendBuffer, "群聊名重复，请重新输入", sizeof(sendBuffer) - 1);
                     write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
                 }
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_GROUP)
+            {
+#if 1
+                struct json_object *groupNameVal = json_object_object_get(parseObj, "groupName");
+                const char *groupNameValue = json_object_get_string(groupNameVal);
+                char groupName[BUFFER_SIZE] = {0};
+                strncpy(groupName, groupNameValue, sizeof(groupName) - 1);
+                int ret = dataBaseCheckGroupName(groupName, nodeUser->name);
+/* 先查询是否已经存在该群名 */
+#if 0
+                // sprintf(sqlBuf, "SELECT * FROM GROUP_DATA WHERE GROUP_NAME = '%s'", groupNameValue);
+                // /* 执行sqlite3查询语句 */
+                // pthread_mutex_lock(&Db_Mutx);
+                // sqlite3_get_table(Data_db, sqlBuf, &result, &rows, &columns, &errmsg);
+                // pthread_mutex_unlock(&Db_Mutx);
+                // /*------------------------*/
+                // printf("Test:rows:%d\n", rows);
+#endif
+                if (ret == ON_SUCCESS)
+                {
+                    /* 该群不存在 */
+                    strncpy(sendBuffer, "GROUP_NOT_EXISTS", sizeof(sendBuffer));
+                    write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                }
+                else
+                {
+                    /* 群存在，判断是否已经是该群成员 */
+                    ret = dataBaseCheckNameInGroup(groupName, nodeUser->name);
+#if 0
+                    // char **tmpResult = NULL;
+                    // int tmpRows = 0;
+                    // int tmpColumns = 0;
+                    // char *tmpErrmsg = NULL;
+                    // char tmpSql[BUFFER_SIZE] = {0};
+
+                    // sprintf(tmpSql, "SELECT * FROM GROUP_DATA WHERE GROUP_NAME = '%s' AND MEMBER = '%s'", GRP_Name, user_Account);
+                    // /* 执行sqlite3查询语句 */
+                    // pthread_mutex_lock(&Db_Mutx);
+                    // sqlite3_get_table(Data_db, tmpSql, &tmpResult, &tmpRows, &tmpColumns, &tmpErrmsg);
+                    // pthread_mutex_unlock(&Db_Mutx);
+#endif
+                    if (ret == 0)
+                    {
+                        /* 不是群成员，加入,插入群聊 */
+                        dataBaseInsertGroup(groupName, nodeUser->name);
+#if 0
+                        sprintf(tmpSql, "INSERT INTO GROUP_DATA (GROUP_NAME,MEMBER) VALUES ('%s','%s')", GRP_Name, user_Account);
+                        /* 执行插入语句 */
+                        pthread_mutex_lock(&Db_Mutx);
+                        sqlite3_exec(Data_db, tmpSql, NULL, NULL, NULL);
+                        pthread_mutex_unlock(&Db_Mutx);
+#endif
+                        /* 告诉客户端成功 */
+                        memset(sendBuffer, 0, sizeof(sendBuffer));
+                        strncpy(sendBuffer, "ADDSUCCESS", sizeof(sendBuffer));
+                        write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                    }
+                    else
+                    {
+                        /* 已经是群成员 */
+                        memset(sendBuffer, 0, sizeof(sendBuffer));
+                        strncpy(sendBuffer, "ISMEMBER", sizeof(sendBuffer));
+                        write(fdset->acceptfd, sendBuffer, sizeof(sendBuffer));
+                    }
+                }
+#endif
             }
         }
         json_object_put(parseObj);

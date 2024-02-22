@@ -505,7 +505,67 @@ int createGroup(int sockfd)
     json_object_put(GroupNameCheck);
     return 0;
 }
+/* 添加群聊 */
+int addGroup(int sockfd)
+{
+    /* 服务端先检查群聊是否存在 */
+    /* 存在，查看是否已经是群成员 */
 
+    char Group[BUFFER_SIZE];
+    char sendBuf[BUFFER_SIZE];
+    char recvBuf[BUFFER_SIZE];
+
+    struct json_object *GroupObj = json_object_new_object();
+
+    while (1)
+    {
+        printf("请输入要加入的群聊名称(esc退出):\n");
+        memset(Group, 0, sizeof(Group));
+        scanf("%s", Group);
+        if (strlen(Group) == 1 && Group[0] == 27)
+        {
+            break;
+        }
+        /* 打包 */
+        json_object_object_add(GroupObj, "options", json_object_new_int(ADD_GROUP));
+        json_object_object_add(GroupObj, "groupName", json_object_new_string(Group));
+        json_object_object_add(GroupObj, "choices", json_object_new_string("c"));
+        /* 生成字符串 */
+        const char *sendStr = json_object_to_json_string(GroupObj);
+        memset(sendBuf, 0, sizeof(sendBuf));
+        memset(recvBuf, 0, sizeof(recvBuf));
+        /* 放入发送缓存区 */
+        strncpy(sendBuf, sendStr, sizeof(sendBuf) - 1);
+        /* 发送给服务端 */
+        write(sockfd, sendBuf, sizeof(sendBuf));
+        /* 等待服务端回应 */
+        read(sockfd, recvBuf, sizeof(recvBuf));
+        /* 判断回应 */
+        if (strncmp(recvBuf, "ADDSUCCESS", strlen("ADDSUCCESS")) == 0)
+        {
+            /* 可行，跳出循环，执行下一步操作 */
+            printf("成功加入群聊\n");
+            sleep(1);
+            break;
+        }
+        else if (strncmp(recvBuf, "GROUP_NOT_EXISTS", strlen("GROUP_NOT_EXISTS")) == 0)
+        {
+            /* 不可行，重新输入 */
+            printf("群聊名称不存在,请重新输入\n");
+            sleep(1);
+        }
+        else
+        {
+            /* 已经是群成员 */
+            printf("您已是群成员\n");
+            sleep(1);
+        }
+    }
+
+    /* 释放 */
+    json_object_put(GroupObj);
+    return 0;
+}
 int main()
 {
     /*初始化树*/
@@ -598,7 +658,7 @@ int main()
             while (options != EXIT && (strcmp(recvBuffer, SUCCESS_LOGIN) == 0))
             {
                 printf("请输入选项:\n");
-                printf("1.添加好友\n2.好友请求\n3.删除好友\n4.给好友发送消息\n5.创建群聊\n6.加入群聊\n7.进入群聊\n8.退出登录\n");
+                printf("1.添加好友\n2.好友请求\n3.删除好友\n4.发送消息\n5.创建群聊\n6.加入群聊\n7.群聊消息\n8.退出登录\n");
                 scanf("%d", &options);
                 switch (options)
                 {
@@ -701,6 +761,7 @@ int main()
                 }
                 case ADD_GROUP:
                 {
+                    addGroup(sockfd);
                     break;
                 }
                 case GROUP_CHAT:
