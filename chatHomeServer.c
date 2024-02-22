@@ -379,7 +379,7 @@ void *communicate_handler(void *arg)
             }
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == DELETE_FRIREND)
             {
-                /* 将数据库中的name和friendName的好友状态全部设置为0*/
+                /* 将数据库中的name和friendName的行全部删除*/
                 ret = dataBaseDeleteFriend(parseObj, nodeUser->name);
                 if (ret != ON_SUCCESS)
                 {

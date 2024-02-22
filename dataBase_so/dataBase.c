@@ -398,7 +398,9 @@ static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow
 int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName)
 {
     const char *deleteName = json_object_get_string(json_object_object_get(parseObj, "deleteName"));
-    int row;
+    char deleteFriendTemp[BUFFER_SIZE] = {0};
+    strncpy(deleteFriendTemp, deleteName, sizeof(deleteFriendTemp) - 1);
+    int row = 0;
     char **friendName = dataBaseAppointNameFindFriendName(deleteName, &row);
     int idx = 1;
     while (idx <= row)
@@ -416,7 +418,7 @@ int dataBaseDeleteFriend(struct json_object *parseObj, char *loginedName)
             }
             char *errormsg = NULL;
             char sql[SQL_SIZE] = {0};
-            sprintf(sql, "delete from friend where (name='%s' AND friendName='%s' and whetherFriend=1) OR (name='%s' AND friendName='%s' and whetherFriend=1)", loginedName, friendName[idx], friendName[idx], loginedName);
+            sprintf(sql, "delete from friend where (name='%s' AND friendName='%s' and whetherFriend=1) OR (name='%s' AND friendName='%s' and whetherFriend=1)", loginedName, deleteFriendTemp, deleteFriendTemp, loginedName);
             ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
             if (ret != SQLITE_OK)
             {

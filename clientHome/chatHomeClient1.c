@@ -498,6 +498,7 @@ int main()
     char *choices = calloc(BUFFER_SIZE, sizeof(char));
     int options = 0;
 
+    char recvAfter[BUFFER_SIZE] = {0};
     char chatFriendName[BUFFER_SIZE];
     memset(chatFriendName, 0, sizeof(chatFriendName));
     char message[BUFFER_SIZE] = {0};
@@ -540,7 +541,8 @@ int main()
             /*登录成功*/
             printf("loginedName=%s\n", loginedName);
             strncpy(signinedName, loginedName, sizeof(signinedName) - 1);
-            while (options != EXIT && strcmp(recvBuffer, SUCCESS_LOGIN) == 0)
+            options = 0;
+            while (options != EXIT && (strcmp(recvBuffer, SUCCESS_LOGIN) == 0))
             {
                 printf("请输入选项:\n");
                 printf("1.添加好友\n2.好友请求\n3.删除好友\n4.给好友发送消息\n5.查看消息\n6.退出登录\n");
@@ -550,26 +552,26 @@ int main()
                 case ADD_FRIEND:
                 {
                     addfriend(sockfd);
-                    ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+                    ret = read(sockfd, recvAfter, sizeof(recvAfter));
                     if (ret <= 0)
                     {
                         perror("read error");
                     }
-                    printf("提示:%s\n", recvBuffer);
+                    printf("提示:%s\n", recvAfter);
                     break;
                 }
                 case HANDLE_APPLICATION:
                 {
                     /*向服务器发送HANDLE_APPLICATION请求*/
                     friendApplication(sockfd);
-                    ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+                    ret = read(sockfd, recvAfter, sizeof(recvAfter));
                     if (ret <= 0)
                     {
                         perror("read error");
                     }
-                    printf("提示:%s\n", recvBuffer);
+                    printf("提示:%s\n", recvAfter);
                     sleep(2);
-                    if (strcmp(recvBuffer, NO_APPLY_NOW) != 0)
+                    if (strcmp(recvAfter, NO_APPLY_NOW) != 0)
                     {
                         printf("请输入选项:\n");
                         printf("1.接受\n2.拒绝\n");
@@ -584,12 +586,12 @@ int main()
                 case DELETE_FRIREND:
                 {
                     deleteFriend(sockfd);
-                    ret = read(sockfd, recvBuffer, sizeof(recvBuffer));
+                    ret = read(sockfd, recvAfter, sizeof(recvAfter));
                     if (ret <= 0)
                     {
                         perror("read error");
                     }
-                    printf("提示:%s\n", recvBuffer);
+                    printf("提示:%s\n", recvAfter);
                     break;
                 }
                 case SEND_MESSAGE:
