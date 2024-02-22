@@ -4,7 +4,7 @@
 #define ELEMENTTYPE void *
 
 /* 状态码 */
-enum STATUS_CODE
+enum CODE__STATUS
 {
     NOT_FIND = -4,
     NULL_PTR,

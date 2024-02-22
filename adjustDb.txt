@@ -13,7 +13,7 @@ int main()
         perror("sqlite3_open error");
         exit(-1);
     }
-
+    char sql[128] = {0};
     // int result = dataBaseFindFriendApply("easy");
     /*
         创建一个表
@@ -87,8 +87,8 @@ int main()
     //     printf("sqlite3_exec error3:%s\n", errormsg);
     //     exit(-1);
     // }
-    // /*删除一列*/
-    // sql = "alter table user drop address";
+    /*删除一列*/
+    // strcpy(sql, "alter table friend drop acceptfd");
     // ret = sqlite3_exec(mydb, sql, NULL, NULL, &errormsg);
     // if (ret != SQLITE_OK)
     // {

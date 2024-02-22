@@ -41,7 +41,7 @@ int hashTableInsert(HashTable *pHashtable, HASH_KEYTYPE key, HASH_VALUETYPE valu
 int hashTableDelAppointKey(HashTable *pHashtable, HASH_KEYTYPE key);
 
 /* 哈希表 根据key获取所有value中的message */
-int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char ***messageList, int *pRow);
+int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char ***messageList, int *pRow, char *senderName);
 
 /* 哈希表元素大小 */
 int hashTableGetSize(HashTable *pHashtable);

@@ -186,7 +186,7 @@ int hashTableDelAppointKey(HashTable *pHashtable, HASH_KEYTYPE key)
     return ret;
 }
 /*根据结点找到对应的值*/
-char **DoubleLinkListAppointKeyValGetAllNodeValue(DoubleLinkList *pList, ELEMENTTYPE val, int (*compareFunc)(ELEMENTTYPE, ELEMENTTYPE), int *pRow)
+char **DoubleLinkListAppointKeyValGetAllNodeValue(DoubleLinkList *pList, ELEMENTTYPE val, int (*compareFunc)(ELEMENTTYPE, ELEMENTTYPE), int *pRow, char *senderName)
 {
     int row = 0;
     int pos = 0;
@@ -199,9 +199,18 @@ char **DoubleLinkListAppointKeyValGetAllNodeValue(DoubleLinkList *pList, ELEMENT
         cmp = compareFunc(val, travelNode->data);
         if (cmp == 0)
         {
+
             hashNode *mapNode = (hashNode *)travelNode->data;
-            result[idx] = mapNode->value.message;
-            idx++;
+            if (strcmp(mapNode->value.sender, senderName) == 0)
+            {
+                result[idx] = mapNode->value.message;
+                // sprintf(result[idx], "'%s'向你发送信息:'%s'", mapNode->value.sender, mapNode->value.message);
+                idx++;
+            }
+            else
+            {
+                continue;
+            }
         }
         /* 遍历 */
         travelNode = travelNode->next;
@@ -216,8 +225,8 @@ char **DoubleLinkListAppointKeyValGetAllNodeValue(DoubleLinkList *pList, ELEMENT
         return NULL;
     }
 }
-/* 哈希表 根据key获取所有value中的message */
-int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char ***messageList, int *pRow)
+/* 哈希表 获取接收方为key发送方为senderName的所有的message */
+int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char ***messageList, int *pRow, char *senderName)
 {
 
     /* 将外部传过来的key 转化为我哈希表对应的slotId */
@@ -230,7 +239,7 @@ int hashTableGetAppointKeyValue(HashTable *pHashtable, HASH_KEYTYPE key, char **
     /*将key赋值给tmpNode*/
     tmpNode.real_key = key;
     /*给出哈希节点的key，找出key所对应的所有消息*/
-    char **result = DoubleLinkListAppointKeyValGetAllNodeValue((pHashtable->slotKeyId[KeyId]), &tmpNode, pHashtable->compareFunc, &row);
+    char **result = DoubleLinkListAppointKeyValGetAllNodeValue((pHashtable->slotKeyId[KeyId]), &tmpNode, pHashtable->compareFunc, &row, senderName);
     if (result == NULL)
     {
         return -1;

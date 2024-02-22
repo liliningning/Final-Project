@@ -25,6 +25,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include "hashtable.h"
+#include "globalVary.h"
+#include "privateMsgHash.h"
 #define SERVER_PORT 8850
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -37,14 +39,7 @@
 #define REGISTER "a"
 #define LOGIN "b"
 #define SLOTNUMS 37
-/*全局变量，方便捕捉信号后释放资源*/
-HashTable *hash = NULL;
-ThreadPool *pool = NULL;
-int sockfd;
-BalanceBinarySearchTree *AVL = NULL;
-sqlite3 *mydb = NULL;
-pthread_mutex_t g_mutex;
-
+MsgHash *Hash = NULL;
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
@@ -114,6 +109,60 @@ void *accept_handler(void *arg)
         fdset = NULL;
     }
 }
+/* 服务端处理客户端私聊消息 */
+int dealPrivateChat(int acceptfd, char *user, char *Friend, MsgHash *msgHash, pthread_mutex_t *Hash_Mutx)
+{
+    //"!@#$%^*&^%$#@!_^@%#$#!"  取消息交流
+    //"!@%^&$@(#^)!@*+@$#$@"  停止读
+    char sendBuf[BUFFER_SIZE];
+    char recvBuf[BUFFER_SIZE];
+    int fetchNUm = 0;
+    while (1)
+    {
+        sleep(1);
+        memset(sendBuf, 0, sizeof(sendBuf));
+        memset(recvBuf, 0, sizeof(recvBuf));
+        read(acceptfd, recvBuf, sizeof(recvBuf));
+        printf("read = %s\n", recvBuf);
+        if (strncmp(recvBuf, "fetchMsg", strlen("fetchMsg")) == 0)
+        {
+            fetchNUm++;
+            printf("fetchNum = %d\n", fetchNUm);
+            /* 去消息队列中取接收者是客户端和发送者是指定好友的消息，发回给客户端 */
+            /* 上锁 */
+            pthread_mutex_lock(Hash_Mutx);
+            int ret = hashMsgGet(msgHash, Friend, user, sendBuf);
+            pthread_mutex_unlock(Hash_Mutx);
+            if (ret == ON_SUCCESS)
+            {
+                // 将取出的消息给客户端
+                write(acceptfd, sendBuf, sizeof(sendBuf));
+            }
+            else
+            {
+                /* 告诉客户端无消息 */
+                strncpy(sendBuf, "fetchMsg", strlen("fetchMsg")); /*无消息*/
+                write(acceptfd, sendBuf, sizeof(sendBuf));
+            }
+        }
+        else if (strncmp(recvBuf, "stopRead", strlen("stopRead")) == 0)
+        {
+            /* 停止读 */
+            break;
+        }
+        else
+        {
+            printf("%s:%s\n", user, recvBuf);
+            /* 聊天消息 */
+            /* 往消息队列中存放消息，接收者为聊天对象 */
+            /* 上锁 */
+            pthread_mutex_lock(Hash_Mutx);
+            hashMsgInsert(msgHash, user, Friend, recvBuf);
+            pthread_mutex_unlock(Hash_Mutx);
+        }
+    }
+    return 0;
+}
 void *communicate_handler(void *arg)
 { /*判断函数返回值*/
     int ret = 0;
@@ -134,13 +183,14 @@ void *communicate_handler(void *arg)
     char *demand = calloc(BUFFER_SIZE, sizeof(char));
     USER *currentUser = calloc(1, sizeof(USER));
     USER *nodeUser = NULL;
+
     while (1)
     {
         /*读取数据*/
         readBytes = read(fdset->acceptfd, (void *)&recvbuffer, sizeof(recvbuffer));
         printf("%s\n", recvbuffer);
-        /*解析json对象*/
         struct json_object *parseObj = calloc(1, sizeof(parseObj));
+        /*解析json对象*/
         parseObj = json_tokener_parse(recvbuffer);
         if (readBytes < 0)
         {
@@ -226,7 +276,7 @@ void *communicate_handler(void *arg)
             /*功能在if中加*/
             else if (!strcmp(json_object_get_string(json_object_object_get(parseObj, "choices")), LOGIN))
             {
-                printf("------check------\n");
+                printf("go login\n");
                 /*将解析对象的name和password放入currentUser中，方便后续调用树的查找接口*/
                 strncpy(currentUser->name, json_object_get_string(json_object_object_get(parseObj, "account")), sizeof(currentUser->name) - 1);
                 strncpy(currentUser->password, json_object_get_string(json_object_object_get(parseObj, "password")), sizeof(currentUser->password) - 1);
@@ -283,6 +333,7 @@ void *communicate_handler(void *arg)
                     }
                     sleep(1);
                 }
+                printf("login over\n");
             }
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == ADD_FRIEND)
             {
@@ -345,6 +396,17 @@ void *communicate_handler(void *arg)
             }
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == SEND_MESSAGE)
             {
+                printf("go sendMessage\n");
+#if 0
+                /*将哈希表中的取信息传入客户端*/
+                while (1)
+                {
+                    read;
+                    /*判断客户端发过来的消息如果不是*/
+                    write;
+                }
+
+                /*将客户端传入过来的信息存入哈希表*/
                 struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
                 struct json_object *chatFriendNameVal = json_object_object_get(parseObj, "chatFriendName");
                 struct json_object *messageVal = json_object_object_get(parseObj, "message");
@@ -355,6 +417,19 @@ void *communicate_handler(void *arg)
                 char chatFriendName[BUFFER_SIZE] = {0};
                 strncpy(chatFriendName, json_object_get_string(chatFriendNameVal), sizeof(chatFriendNameVal) - 1);
                 hashTableInsert(hash, chatFriendName, messageSet);
+            }
+
+#endif
+                /*处理消息*/
+                struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
+                struct json_object *chatFriendNameVal = json_object_object_get(parseObj, "chatFriendName");
+                // struct json_object *messageVal = json_object_object_get(parseObj, "message");
+                pthread_mutex_t hash_mutex;
+                char loginedName[BUFFER_SIZE] = {0};
+                strncpy(loginedName, json_object_get_string(loginedNameVal), sizeof(loginedName) - 1);
+                char chatFriendName[BUFFER_SIZE] = {0};
+                strncpy(chatFriendName, json_object_get_string(chatFriendNameVal), sizeof(chatFriendName) - 1);
+                dealPrivateChat(fdset->acceptfd, loginedName, chatFriendName, Hash, &hash_mutex);
             }
         }
         json_object_put(parseObj);
@@ -434,8 +509,11 @@ int compareHash(ELEMENTTYPE arg1, ELEMENTTYPE arg2)
     hashNode node2 = *(hashNode *)arg2;
     return strcmp(node1.real_key, node2.real_key);
 }
+
 int main()
 {
+
+    HashInit(&Hash, 37);
     hashTableInit(&hash, SLOTNUMS, compareHash);
     /*初始化树，数据库，线程池，锁*/
     /*初始化树*/
