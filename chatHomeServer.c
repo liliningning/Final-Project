@@ -116,7 +116,6 @@ int dealPrivateChat(int acceptfd, char *user, char *Friend, MsgHash *msgHash, pt
     //"!@%^&$@(#^)!@*+@$#$@"  停止读
     char sendBuf[BUFFER_SIZE];
     char recvBuf[BUFFER_SIZE];
-    int fetchNUm = 0;
     while (1)
     {
         sleep(1);
@@ -126,8 +125,7 @@ int dealPrivateChat(int acceptfd, char *user, char *Friend, MsgHash *msgHash, pt
         printf("read = %s\n", recvBuf);
         if (strncmp(recvBuf, "fetchMsg", strlen("fetchMsg")) == 0)
         {
-            fetchNUm++;
-            printf("fetchNum = %d\n", fetchNUm);
+
             /* 去消息队列中取接收者是客户端和发送者是指定好友的消息，发回给客户端 */
             /* 上锁 */
             pthread_mutex_lock(Hash_Mutx);

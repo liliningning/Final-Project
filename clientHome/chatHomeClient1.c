@@ -351,7 +351,6 @@ void *readThread(void *arg)
     memset(sendBuf, 0, sizeof(sendBuf));
     /* 告诉服务器取消息 */
     strncpy(sendBuf, "fetchMsg", strlen("fetchMsg"));
-    int sendFetchNum = 0;
     while (1)
     {
         sleep(1);
@@ -361,8 +360,7 @@ void *readThread(void *arg)
             /* 不断通知服务端取消息 */
             write(sockfd, sendBuf, sizeof(sendBuf));
             memset(recvBuf, 0, sizeof(recvBuf));
-            sendFetchNum++;
-            printf("sendFetchNum = %d\n", sendFetchNum);
+
             /* 读服务器传回的消息 */
             read(sockfd, recvBuf, sizeof(recvBuf));
             if (strncmp(recvBuf, "fetchMsg", strlen("fetchMsg")) != 0)
