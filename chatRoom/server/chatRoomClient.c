@@ -8,20 +8,33 @@
 #include <pthread.h>
 #include <string.h>
 #include <unistd.h>
-#define PORT 7777
+#define PORT 8888
 #define SERVER_IP "172.16.104.91"
 #define BUF_SIZE 128
 
+/* 接收数据  */
 void *client_hander(void *arg)
 {
-
     int sockfd = *(int *)arg;
-    char buf[BUF_SIZE];
+    char recvebuf[BUF_SIZE];
+    memset(recvebuf, 0, sizeof(recvebuf));
+
     while (1)
     {
-        memset(buf, 0, sizeof(buf));
-        read(sockfd, buf, sizeof(buf));
-        printf("服务器 %s\n", buf);
+
+        int readbytre = read(sockfd, recvebuf, sizeof(recvebuf) - 1);
+        if (readbytre < 0)
+        {
+            perror("read error");
+        }
+        else if (readbytre == 0)
+        {
+            printf("xxxxx\n");
+        }
+        else
+        {
+            printf("recv %s\n", recvebuf);
+        }
     }
 }
 
@@ -74,16 +87,45 @@ int main()
         perror("ptread create error");
         exit(-1);
     }
-    char bufF[BUF_SIZE];
-    memset(bufF, 0, sizeof(bufF));
-
+    /* 发送给其他客户端的数据 */
+    char writebuf[BUF_SIZE];
+    memset(writebuf, 0, sizeof(writebuf));
     while (1)
     {
+#if 0
+        strncpy(buf, " lilii", sizeof(buf) - 1);
 
+        write(sockfd, buf, sizeof(buf));
+
+        read(sockfd, buf, sizeof(buf));
+     
+       printf("recv: %s\n ",buf);
+#endif
+         char recvebuf[BUF_SIZE];
+        memset(recvebuf, 0, sizeof(recvebuf));
+        /* 写 */
         printf("input:");
-        scanf("%s", bufF);
-        write(sockfd, bufF, sizeof(bufF));
+        scanf("%s", writebuf);
+        write(sockfd, writebuf, strlen(writebuf) + 1);
+        int readByte =  read(sockfd, recvebuf, sizeof(recvebuf));
+
+            if(readByte == 0)
+            {
+                    printf("xxxx\n");
+            }
+            else if(readByte < 0)
+            {
+                perror("read error");
+            }
+            else
+            {
+                printf("recv %s\n",recvebuf);
+            }
+        
     }
+
+    close(sockfd);
+    sleep(5);
 
     return 0;
 }

@@ -44,14 +44,26 @@ void onemenu()
 }
 
 
-
+/* */
 void  twomenu()
+{
+    printf("\t-------------------------------------\n");
+    printf("\t|                                   |\n");
+    printf("\t|    1:添加好友                         |\n");
+    printf("\t|    2:好友请求                         |\n");
+    printf("\t|    3:删除好友                         |\n");
+    printf("\t|    4:给好友发送消息                         |\n");
+    printf("\t|                                   |\n");
+    printf("\t-------------------------------------\n");
+}
+
+void threemenu()
 {
     printf("\t-------------------------------------\n");
     printf("\t|                                   |\n");
     printf("\t|    1:私聊                         |\n");
     printf("\t|    2:群聊                         |\n");
-    printf("\t|    0:退出                         |\n");
+    printf("\t|    3:查看聊天记录                         |\n");
     printf("\t|                                   |\n");
     printf("\t-------------------------------------\n");
 }
@@ -130,15 +142,17 @@ void clientLogin(int sockfd)
 
     printf("请输入密码：");
     scanf("%s", passwordNumber);
+#if 0
     char **result = NULL;
     const char *sql = "select pwd from  usr where name= 'xxx' ";
     /* 执行数据库语句 sqlite3_exec()*/
     /* 数据库查询 是否相等 */
     int num = strncmp(accountNumber, result[1], sizeof(accountNumber) - 1 );
+
     if (num == 0)
     {
         printf("登录成功！");
-        /* 跳转到聊天界面 */
+        /* 跳转到下一个界面界面 */
         twomenu();
     }
     else
@@ -147,6 +161,12 @@ void clientLogin(int sockfd)
         printf("请输入密码：");
         scanf("%s", passwordNumber);
     }
+#endif
+
+/* 将其转化为字符串然后传给服务器进行接受 */
+
+
+
 }
 
 

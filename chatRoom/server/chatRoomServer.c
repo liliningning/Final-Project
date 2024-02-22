@@ -8,11 +8,12 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <errno.h>
 
-#define PORT 7777
+#define PORT 8888
 #define LISTEN_MAX 128
 #define BUFSIZE 128
-#define GROUP_SIZE 1024
+#define GROUP_SIZE 8
 
 /* 客户端套接字数组 */
 int clent_td[GROUP_SIZE] = {0};
@@ -37,32 +38,25 @@ void send_msg()
 /* 接收客户端B 发送给客户端A */
 void *client_hander(void *arg)
 {
+    pthread_detach(pthread_self());
+    int num = *(int *)arg;
     /* 接收 */
     char recvbuf[BUFSIZE];
     memset(recvbuf, 0, sizeof(recvbuf));
-    /* 发送 */
-    char sendbuf[BUFSIZE];
-    memset(sendbuf, 0, sizeof(sendbuf));
-
     while (1)
     {
         /* 接收客户端B发送的数据 */
-        int readByte = read(clent_td[1], recvbuf, sizeof(recvbuf));
-        if (readByte <= 0)
+        int readByte = recv(clent_td[1], recvbuf, sizeof(recvbuf), 0);
+        if (readByte == 0)
         {
             perror("read error");
-            close(clent_td[1]);
             break;
         }
-        else
-        {
-
-            /* 向客户端B发送数据 */
-            write(clent_td[0], sendbuf, sizeof(sendbuf) - 1);
-            printf("客户端 %d 已下线\n", clent_td[1]);
-        }
+        /* 向客户端B发送数据 */
+        send(clent_td[0], recvbuf, sizeof(recvbuf), 0);
     }
 }
+
 
 int main()
 {
@@ -112,7 +106,9 @@ int main()
     struct sockaddr_in clientaddr;
     bzero(&clientaddr, sizeof(clientaddr));
     socklen_t clientlen = sizeof(clientaddr);
-    for (int idx = 0; idx < clientlen; idx++)
+
+    int idx = 0;
+    for (idx = 0; idx < clientlen; idx++)
     {
         clent_td[idx] = accept(sockfd, (struct sockaddr *)&clientaddr, &clientlen);
         if (clent_td[idx] == -1)
@@ -122,31 +118,33 @@ int main()
         }
         printf("客户端 %d 上线了\n", clent_td[idx]);
     }
-
+    int num  = 0;
     /* 创建线程 */
     pthread_t tid;
-    pthread_create(&tid, NULL, client_hander, NULL);
+    pthread_create(&tid, NULL, client_hander, (void *)&num);
+    pthread_detach(tid);
 
     /* 接收客户端A发送的数据 */
-    char buf[BUFSIZE];
-    memset(buf, 0, sizeof(buf));
+    char recvbuf[BUFSIZE];
+    memset(recvbuf, 0, sizeof(recvbuf));
 
-    while (1)
+    int readByte = read(clent_td[0], recvbuf, sizeof(recvbuf));
+    if (readByte < 0)
     {
-
-        int readByte = read(clent_td[0], buf, sizeof(buf));
-        if (readByte <= 0)
-        {
-            perror("read error");
-            close(clent_td[0]);
-            break;
-        }
-        else
-        {
-            /* 向客户端B发送数据 */
-            write(clent_td[1], buf, sizeof(buf) - 1);
-        }
+        perror("read error");
     }
+    else if(readByte == 0)
+    {
+        printf("客户端 %d 已下线\n",clent_td[idx]);
+    }
+    else
+    {
+        write(clent_td[1],recvbuf, sizeof(recvbuf));
+        printf("recvbuf %s\n",recvbuf);
+    }
+   
+
+    close(sockfd);
 
     return 0;
 }
