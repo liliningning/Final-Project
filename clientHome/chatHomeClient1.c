@@ -62,6 +62,13 @@ typedef struct ChatIndividual
     char recver[USER_SIZE];
     int sockfd;
 } ChatIndividual;
+
+typedef struct GroupMember
+{
+    char groupName[USER_SIZE];
+    char signinedName[USER_SIZE];
+    int sockfd;
+} GroupMember;
 int compareFunc(void *arg1, void *arg2)
 {
     USER val1 = *(USER *)arg1;
@@ -566,6 +573,113 @@ int addGroup(int sockfd)
     json_object_put(GroupObj);
     return 0;
 }
+/* 读线程函数 */
+static void *GrpReadThread(void *arg)
+{
+    /* 线程分离 */
+    pthread_detach(pthread_self());
+
+    char sendBuf[256];
+    char recvBuf[256];
+
+    int sockfd = ((PTH_CONNECT *)arg)->sockfd;
+    memset(sendBuf, 0, sizeof(sendBuf));
+    /* 告诉服务器取消息 */
+    strncpy(sendBuf, "takeFetch", sizeof(sendBuf));
+
+    while (1)
+    {
+        sleep(1);
+        if (((PTH_CONNECT *)arg)->stop == CONTINUE)
+        {
+            /* ((PTH_CONNECT *)arg)->stop != STOP即传入线程函数的地址的值没有改变 */
+            /* 不断通知服务端取消息 */
+            write(sockfd, sendBuf, sizeof(sendBuf));
+            memset(recvBuf, 0, sizeof(recvBuf));
+            /* 读服务器传回的消息 */
+            read(sockfd, recvBuf, sizeof(recvBuf));
+
+            if (strncmp(recvBuf, "takeFetch", strlen("takeFetch")) != 0)
+            {
+                /*红色加粗下划线*/
+                printf("\033[31;1;4m%s\033[0m\n", recvBuf);
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+/* 读写分离 */
+static int GrpMsgChat(int sockfd)
+{
+    /* 需要读写分离 */
+    char sendBuf[256];
+    char recvBuf[256];
+
+    pthread_t tid;
+    PTH_CONNECT pth_Conect;
+
+    pth_Conect.sockfd = sockfd;
+    pth_Conect.stop = CONTINUE;
+    /* 创建读线程 */
+    pthread_create(&tid, NULL, GrpReadThread, (void *)&pth_Conect);
+    printf("群聊开启:\n");
+    while (1)
+    {
+        memset(sendBuf, 0, sizeof(sendBuf));
+        // printf("输入(ESC退出):");
+        scanf("%s", sendBuf);
+        if (strlen(sendBuf) == 1 && sendBuf[0] == 27)
+        {
+            /* 输入了ESC键 */
+            /* 停止读线程函数的read */
+            pth_Conect.stop = STOP;
+            memset(sendBuf, 0, sizeof(sendBuf));
+            /* 告诉服务端可以停止读了 */
+            strncpy(sendBuf, "stopRead", sizeof(sendBuf));
+            write(sockfd, sendBuf, sizeof(sendBuf));
+            break;
+        }
+        else
+        {
+            /* 要发的消息,传给服务端 */
+            write(sockfd, sendBuf, sizeof(sendBuf));
+        }
+    }
+    return 0;
+}
+
+/*member中有sockfd,groupName,memberName*/
+int groupChat(GroupMember *member)
+{
+    char sendBuf[256];
+    char recvBuf[256];
+
+    /* 行动 */
+    struct json_object *GrChatObj = json_object_new_object();
+    json_object_object_add(GrChatObj, "options", json_object_new_int(GROUP_CHAT));
+    json_object_object_add(GrChatObj, "loginedName", json_object_new_string(member->signinedName));
+    json_object_object_add(GrChatObj, "groupName", json_object_new_string(member->groupName));
+    json_object_object_add(GrChatObj, "choices", json_object_new_string("c"));
+    const char *str = json_object_to_json_string(GrChatObj);
+
+    memset(sendBuf, 0, sizeof(sendBuf));
+    strncpy(sendBuf, str, sizeof(sendBuf) - 1);
+    write(member->sockfd, sendBuf, sizeof(sendBuf));
+
+    /* 读写分离发送消息和接收消息 */
+    GrpMsgChat(member->sockfd);
+
+    /* 释放json对象 */
+    json_object_put(GrChatObj);
+
+    return 0;
+}
 int main()
 {
     /*初始化树*/
@@ -614,6 +728,9 @@ int main()
     char recvAfter[BUFFER_SIZE] = {0};
     char chatFriendName[BUFFER_SIZE];
     memset(chatFriendName, 0, sizeof(chatFriendName));
+
+    char chatGroupName[BUFFER_SIZE];
+    memset(chatGroupName, 0, sizeof(chatGroupName));
     char message[BUFFER_SIZE] = {0};
 
     char *loginedName = calloc(BUFFER_SIZE, sizeof(char *));
@@ -719,32 +836,6 @@ int main()
                         /*输入你要聊天的对象，将登录用户,接收消息的人和消息打包成json发送给服务器处理*/
                         printf("输入你要聊天的对象:\n");
                         scanf("%s", chatFriendName);
-#if 0           
-                        /*读取消息*/
-                        ChatIndividual persons;
-                        persons.sockfd = sockfd;
-                        strncpy(persons.recver, loginedName, sizeof(persons.recver) - 1);
-                        strncpy(persons.sender, chatFriendName, sizeof(persons.sender) - 1);
-                        /*参数打包成结构体传入*/
-                        pthread_t tid;
-                        pthread_create(&tid, NULL, readMsg_handler, (void *)&persons);
-                        // threadPoolAdd(pool, readMsg_handler, (void *)&persons); /*参数是发送者和接受者结构体*/
-                        /*发送消息*/
-                        while (1)
-                        {
-                            printf("输入聊天内容(esc退出聊天):\n");
-                            scanf("%s", message);
-                            /*将这些信息发给服务器处理*/
-                            if (strlen(message) == 1 && message[0] == 27)
-                            {
-                                break;
-                            }
-                            else
-                            {
-                                sendMessage(sockfd, loginedName, chatFriendName, message);
-                            }
-                        }
-#endif
                         /*读取消息*/
                         ChatIndividual persons;
                         persons.sockfd = sockfd;
@@ -766,6 +857,23 @@ int main()
                 }
                 case GROUP_CHAT:
                 {
+                    ret = dataBaseDisPlayGroup(signinedName);
+                    if (ret != ON_SUCCESS)
+                    {
+                        printf("还没有群聊,请加入群聊\n");
+                    }
+                    else
+                    {
+                        /*输入你要聊天的对象，将登录用户,接收消息的人和消息打包成json发送给服务器处理*/
+                        printf("输入你要聊天的群聊:\n");
+                        scanf("%s", chatGroupName);
+                        /*读取消息*/
+                        GroupMember member;
+                        member.sockfd = sockfd;
+                        strncpy(member.signinedName, signinedName, sizeof(member.signinedName) - 1);
+                        strncpy(member.groupName, chatGroupName, sizeof(member.groupName) - 1);
+                        groupChat(&member);
+                    }
                     break;
                 }
                 case EXIT:

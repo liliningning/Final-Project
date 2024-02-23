@@ -33,4 +33,6 @@ int dataBaseCheckGroupName(char *groupName, char *loginedName);
 int dataBaseCheckNameInGroup(char *groupName, char *loginedName);
 /*插入群聊*/
 int dataBaseInsertGroup(char *groupName, char *loginedName);
+/*展示登录用户的所有群聊名称*/
+int dataBaseDisPlayGroup(char *loginedName);
 #endif

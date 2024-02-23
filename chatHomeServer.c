@@ -27,6 +27,7 @@
 #include "hashtable.h"
 #include "globalVary.h"
 #include "privateMsgHash.h"
+#include "GrpMsgHash.h"
 #define SERVER_PORT 8850
 #define MAX_LISTEN 128
 #define LOCAL_IPADDRESS "172.23.232.7"
@@ -40,6 +41,7 @@
 #define LOGIN "b"
 #define SLOTNUMS 37
 MsgHash *Hash = NULL;
+GpHash *gpHash = NULL;
 typedef enum AFTER_LOGIN
 {
     ADD_FRIEND = 1,
@@ -165,6 +167,90 @@ int dealPrivateChat(int acceptfd, char *user, char *Friend, MsgHash *msgHash, pt
     }
     return 0;
 }
+
+/* 服务端:处理客户端群聊 */
+int dealGrpChat(int acceptfd, char *user, char *Group, GpHash *Gp_Hash, pthread_mutex_t *Gp_Mutx, pthread_mutex_t *Db_Mutx)
+{
+    /* 发：查询指定群聊中除用户外的其余成员，全部插一遍消息 */
+    /* 取：取指定群聊，接收者是用户的消息，获取发送者的账号，再查询发送者的昵称 */
+    char sendBuf[256];
+    char recvBuf[256];
+    char sender[ACCOUNT_SIZE];
+    char sqlBuf[BUFFER_SIZE];
+    while (1)
+    {
+        memset(sendBuf, 0, sizeof(sendBuf));
+        memset(recvBuf, 0, sizeof(recvBuf));
+        char **GpResult = NULL;
+        char *Errmsg;
+        int Row = 0;
+        int Columns = 0;
+        /**/
+        read(acceptfd, recvBuf, sizeof(sendBuf));
+        if (strncmp(recvBuf, "takeFetch", strlen("takeFetch")) == 0)
+        {
+            memset(sender, 0, sizeof(sender));
+            /*从哈希表中获取消息*/
+            pthread_mutex_lock(Gp_Mutx);
+            int ret = GpHashGet(Gp_Hash, Group, sender, user, sendBuf);
+            pthread_mutex_unlock(Gp_Mutx);
+
+            if (ret == ON_SUCCESS)
+            {
+                printf("%s:fetch a message\n", user);
+                /* 将发送者名字和取到的消息拼接起来再发过去 */
+                char Msg[200] = {0};
+                strncpy(Msg, sendBuf, sizeof(Msg) - 1);
+                sprintf(sendBuf, "%s:%s", sender, Msg);
+                write(acceptfd, sendBuf, sizeof(sendBuf));
+            }
+            else
+            {
+                printf("null fetch\n");
+                /* 告诉客户端无消息 */
+                strncpy(sendBuf, "takeFetch", sizeof(sendBuf));
+                write(acceptfd, sendBuf, sizeof(sendBuf));
+            }
+        }
+        else if (strncmp(recvBuf, "stopRead", strlen("stopRead")) == 0)
+        {
+            printf("%s退出群聊\n", user);
+            /* 停止读 */
+            break;
+        }
+        else
+        {
+            /* 聊天消息 */
+            /* 查询指定群聊中除用户外其余的所有用户，全部发一遍 */
+            /*打开数据库*/
+            int ret = sqlite3_open("chatBase.db", &mydb);
+            if (ret != SQLITE_OK)
+            {
+                perror("sqlite3_open error");
+                exit(-1);
+            }
+            sprintf(sqlBuf, "SELECT groupMemberName FROM groupChat WHERE groupName = '%s' AND groupMemberName != '%s'", Group, user);
+            /* 上锁查询 */
+            pthread_mutex_lock(Db_Mutx);
+            sqlite3_get_table(mydb, sqlBuf, &GpResult, &Row, &Columns, &Errmsg);
+            pthread_mutex_unlock(Db_Mutx);
+            /* 给群里的其余群员都发一遍 */
+            int idx = 0;
+            pthread_mutex_lock(Db_Mutx);
+            for (idx = 1; idx <= Row; idx++)
+            {
+                GpHashInsert(Gp_Hash, Group, user, GpResult[idx], recvBuf);
+            }
+            pthread_mutex_unlock(Db_Mutx);
+        }
+
+        sqlite3_free_table(GpResult);
+        sqlite3_close(mydb);
+    }
+
+    return 0;
+}
+
 void *communicate_handler(void *arg)
 { /*判断函数返回值*/
     int ret = 0;
@@ -399,29 +485,6 @@ void *communicate_handler(void *arg)
             else if (json_object_get_int(json_object_object_get(parseObj, "options")) == SEND_MESSAGE)
             {
                 printf("go sendMessage\n");
-#if 0
-                /*将哈希表中的取信息传入客户端*/
-                while (1)
-                {
-                    read;
-                    /*判断客户端发过来的消息如果不是*/
-                    write;
-                }
-
-                /*将客户端传入过来的信息存入哈希表*/
-                struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
-                struct json_object *chatFriendNameVal = json_object_object_get(parseObj, "chatFriendName");
-                struct json_object *messageVal = json_object_object_get(parseObj, "message");
-                MessagePackage messageSet;
-                memset(&messageSet, 0, sizeof(messageSet));
-                strncpy(messageSet.message, json_object_get_string(messageVal), sizeof(messageSet.message) - 1);
-                strncpy(messageSet.sender, json_object_get_string(loginedNameVal), sizeof(messageSet.sender) - 1);
-                char chatFriendName[BUFFER_SIZE] = {0};
-                strncpy(chatFriendName, json_object_get_string(chatFriendNameVal), sizeof(chatFriendNameVal) - 1);
-                hashTableInsert(hash, chatFriendName, messageSet);
-            }
-
-#endif
                 /*处理消息*/
                 struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
                 struct json_object *chatFriendNameVal = json_object_object_get(parseObj, "chatFriendName");
@@ -464,16 +527,7 @@ void *communicate_handler(void *arg)
                 char groupName[BUFFER_SIZE] = {0};
                 strncpy(groupName, groupNameValue, sizeof(groupName) - 1);
                 int ret = dataBaseCheckGroupName(groupName, nodeUser->name);
-/* 先查询是否已经存在该群名 */
-#if 0
-                // sprintf(sqlBuf, "SELECT * FROM GROUP_DATA WHERE GROUP_NAME = '%s'", groupNameValue);
-                // /* 执行sqlite3查询语句 */
-                // pthread_mutex_lock(&Db_Mutx);
-                // sqlite3_get_table(Data_db, sqlBuf, &result, &rows, &columns, &errmsg);
-                // pthread_mutex_unlock(&Db_Mutx);
-                // /*------------------------*/
-                // printf("Test:rows:%d\n", rows);
-#endif
+                /* 先查询是否已经存在该群名 */
                 if (ret == ON_SUCCESS)
                 {
                     /* 该群不存在 */
@@ -484,30 +538,12 @@ void *communicate_handler(void *arg)
                 {
                     /* 群存在，判断是否已经是该群成员 */
                     ret = dataBaseCheckNameInGroup(groupName, nodeUser->name);
-#if 0
-                    // char **tmpResult = NULL;
-                    // int tmpRows = 0;
-                    // int tmpColumns = 0;
-                    // char *tmpErrmsg = NULL;
-                    // char tmpSql[BUFFER_SIZE] = {0};
 
-                    // sprintf(tmpSql, "SELECT * FROM GROUP_DATA WHERE GROUP_NAME = '%s' AND MEMBER = '%s'", GRP_Name, user_Account);
-                    // /* 执行sqlite3查询语句 */
-                    // pthread_mutex_lock(&Db_Mutx);
-                    // sqlite3_get_table(Data_db, tmpSql, &tmpResult, &tmpRows, &tmpColumns, &tmpErrmsg);
-                    // pthread_mutex_unlock(&Db_Mutx);
-#endif
                     if (ret == 0)
                     {
                         /* 不是群成员，加入,插入群聊 */
                         dataBaseInsertGroup(groupName, nodeUser->name);
-#if 0
-                        sprintf(tmpSql, "INSERT INTO GROUP_DATA (GROUP_NAME,MEMBER) VALUES ('%s','%s')", GRP_Name, user_Account);
-                        /* 执行插入语句 */
-                        pthread_mutex_lock(&Db_Mutx);
-                        sqlite3_exec(Data_db, tmpSql, NULL, NULL, NULL);
-                        pthread_mutex_unlock(&Db_Mutx);
-#endif
+
                         /* 告诉客户端成功 */
                         memset(sendBuffer, 0, sizeof(sendBuffer));
                         strncpy(sendBuffer, "ADDSUCCESS", sizeof(sendBuffer));
@@ -522,6 +558,21 @@ void *communicate_handler(void *arg)
                     }
                 }
 #endif
+            }
+            else if (json_object_get_int(json_object_object_get(parseObj, "options")) == GROUP_CHAT)
+            {
+                printf("go groupChat\n");
+                /*处理消息*/
+                struct json_object *loginedNameVal = json_object_object_get(parseObj, "loginedName");
+                struct json_object *chatGroupNameVal = json_object_object_get(parseObj, "groupName");
+                pthread_mutex_t hash_mutex;
+                pthread_mutex_t dataBase_mutex;
+                char loginedName[BUFFER_SIZE] = {0};
+                strncpy(loginedName, json_object_get_string(loginedNameVal), sizeof(loginedName) - 1);
+                char chatGroupName[BUFFER_SIZE] = {0};
+                strncpy(chatGroupName, json_object_get_string(chatGroupNameVal), sizeof(chatGroupName) - 1);
+
+                dealGrpChat(fdset->acceptfd, loginedName, chatGroupName, gpHash, &hash_mutex, &dataBase_mutex);
             }
         }
         json_object_put(parseObj);
@@ -606,6 +657,7 @@ int main()
 {
 
     HashInit(&Hash, 37);
+    GpHashInit(&gpHash, 37);
     hashTableInit(&hash, SLOTNUMS, compareHash);
     /*初始化树，数据库，线程池，锁*/
     /*初始化树*/

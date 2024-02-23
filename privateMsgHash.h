@@ -2,25 +2,7 @@
 #define _PRIVATE_MSG_HASH_H_
 
 #include <sqlite3.h>
-#define HASH_KEY_SIZE 64
-#define MESSAGE_SIZE 256
-#define ACCOUNT_SIZE 15
-#define ACCOUNT_LEN 10
-#define TIME_SIZE 20
-#define GROUP_SIZE 25
-#define GROUP_LEN 20
-
-/* 状态码 */
-enum STATUS_CODE
-{
-    NOT_SEARCH = -1,
-    ON_SUCCESSS,
-    SEARCH_SUCCESS,
-    NULL_PTRR,
-    MALLOC_ERRORR,
-    INVALID_ACCESSS,
-};
-
+#include "commonHash.h"
 /* 消息结点 */
 typedef struct MsgNode
 {

@@ -383,12 +383,45 @@ static char **dataBaseAppointNameFindFriendName(const char *name, int *resultRow
         exit(-1);
     }
     char *errormsg = NULL;
-    /*bug->todo...*/
     char sql[SQL_SIZE] = {0};
     char **result = NULL;
     int row = 0;
     int column = 0;
     sprintf(sql, " SELECT friendName FROM friend WHERE name = '%s' and whetherFriend = 1 ", pptmp);
+    ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
+    if (ret != SQLITE_OK)
+    {
+        printf("sqlite3_get_table error8:%s\n", errormsg);
+        exit(-1);
+    }
+    if (row != 0)
+    {
+        *resultRow = row;
+        return result;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+static char **dataBaseAppointNameFindGroupName(char *name, int *resultRow)
+{
+    char pptmp[BUFFER_SIZE] = {0};
+    strncpy(pptmp, name, sizeof(pptmp) - 1);
+    sqlite3 *mydb = NULL;
+    /*打开数据库*/
+    int ret = sqlite3_open("/code/chatHome/Final-Project/chatBase.db", &mydb);
+    if (ret != SQLITE_OK)
+    {
+        perror("sqlite3_open error");
+        exit(-1);
+    }
+    char *errormsg = NULL;
+    char sql[SQL_SIZE] = {0};
+    char **result = NULL;
+    int row = 0;
+    int column = 0;
+    sprintf(sql, " SELECT groupName FROM groupChat WHERE groupMemberName = '%s'", pptmp);
     ret = sqlite3_get_table(mydb, sql, &result, &row, &column, &errormsg);
     if (ret != SQLITE_OK)
     {
@@ -600,4 +633,26 @@ int dataBaseInsertGroup(char *groupName, char *loginedName)
         exit(-1);
     }
     sqlite3_close(mydb);
+}
+int dataBaseDisPlayGroup(char *loginedName)
+{
+    int row = 0;
+    char **groupName = NULL;
+    groupName = dataBaseAppointNameFindGroupName(loginedName, &row);
+    sqlite3 *mydb = NULL;
+    if (row == 0)
+    {
+        return NO_APPLY;
+    }
+    else
+    {
+        int idx = 1;
+        while (idx <= row)
+        {
+            printf("%s\t", groupName[idx]);
+            idx++;
+        }
+        printf("\n");
+        return ON_SUCCESS;
+    }
 }
