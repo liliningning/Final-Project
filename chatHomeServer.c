@@ -502,9 +502,9 @@ void *communicate_handler(void *arg)
                 const char *groupNameValue = json_object_get_string(groupNameVal);
                 char groupName[BUFFER_SIZE] = {0};
                 strncpy(groupName, groupNameValue, sizeof(groupName) - 1);
-                /* 先查询是否已经存在该群名 */
+                /*先查询群聊是否存在，存在则重新输入，不存在则直接插入数据库*/
                 pthread_mutex_lock(&g_mutex);
-                int ret = dataBaseCheckGroupName(groupName, nodeUser->name);
+                int ret = dataBaseCreateGroup(groupName, nodeUser->name);
                 pthread_mutex_unlock(&g_mutex);
                 if (ret == ON_SUCCESS)
                 {
